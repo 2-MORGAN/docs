@@ -1,0 +1,151 @@
+---
+title: "Frameworks supportés"
+description: "Go, Next.js et Spring Boot — détail des templates générés par CNP pour chaque framework."
+---
+
+## Vue d'ensemble
+
+CNP génère automatiquement les fichiers de configuration selon le framework choisi. Les templates sont embarqués dans le binaire Go via `//go:embed` et rendus avec `text/template`.
+
+---
+
+## Go
+
+**Identifiant** : `go`
+
+### Fichiers générés
+
+| Fichier | Description |
+| --- | --- |
+| `.gitlab-ci.yml` | Pipeline CI/CD |
+| `Dockerfile` | Image de production |
+| `go.mod` | Module Go avec chemin automatique |
+| `.gitignore` | Ignorer les binaires |
+| `README.md` | README pré-rempli |
+
+### Pipeline CI
+
+```yaml
+stages:
+  - build
+  - test
+  - docker
+
+build:
+  image: golang:1.22-alpine
+  script:
+    - go build ./...
+
+test:
+  image: golang:1.22-alpine
+  script:
+    - go test ./...
+
+docker-build:
+  image: kaniko
+  only:
+    - main
+```
+
+---
+
+## Next.js
+
+**Identifiant** : `nextjs`
+
+### Fichiers générés
+
+| Fichier | Description |
+| --- | --- |
+| `.gitlab-ci.yml` | Pipeline CI/CD avec cache npm |
+| `Dockerfile` | Image multi-stage |
+| `package.json` | Configuration npm |
+| `next.config.js` | Configuration Next.js |
+| `tsconfig.json` | Configuration TypeScript |
+| `app/page.tsx` | Page d'accueil |
+| `app/layout.tsx` | Layout racine |
+
+### Pipeline CI
+
+```yaml
+stages:
+  - build
+  - docker
+
+build:
+  image: node:20-alpine
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - .next/
+```
+
+<Note>
+  Le pipeline utilise `npm ci` sur `main` et les Merge Requests, et `npm install` sur les autres branches.
+</Note>
+
+---
+
+## Spring Boot
+
+**Identifiant** : `springboot`
+
+### Fichiers générés
+
+| Fichier | Description |
+| --- | --- |
+| `.gitlab-ci.yml` | Pipeline CI/CD avec cache Maven |
+| `Dockerfile` | Image de production |
+
+### Pipeline CI
+
+```yaml
+stages:
+  - test
+  - build
+  - docker
+
+test:
+  image: maven:3.9-eclipse-temurin-21
+  script:
+    - mvn test -B
+
+build:
+  image: maven:3.9-eclipse-temurin-21
+  script:
+    - mvn package -DskipTests -B
+  artifacts:
+    paths:
+      - target/*.jar
+```
+
+---
+
+## Variables CI injectées
+
+Pour tous les frameworks, CNP injecte ces variables CI/CD GitLab (protégées et masquées) :
+
+| Variable | Description |
+| --- | --- |
+| `REGISTRY_TOKEN` | Token d'accès au registry Docker |
+| `REGISTRY_URL` | URL du registry |
+| `REGISTRY_USERNAME` | Nom d'utilisateur du registry |
+
+<Warning>
+  Les valeurs initiales sont des placeholders (`PLACEHOLDER_*`). Remplacez-les manuellement dans GitLab CI/CD → Variables.
+</Warning>
+
+## Build Docker avec Kaniko
+
+Tous les frameworks utilisent [Kaniko](https://github.com/GoogleContainerTools/kaniko) pour builder sans démon Docker. L'image est poussée avec deux tags :
+
+- `CI_REGISTRY_IMAGE:CI_COMMIT_SHORT_SHA` — tag immutable
+- `CI_REGISTRY_IMAGE:latest` — tag toujours à jour

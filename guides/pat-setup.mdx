@@ -1,0 +1,65 @@
+---
+title: "Configurer un PAT GitLab"
+description: "Comment créer et enregistrer un Personal Access Token GitLab pour utiliser CNP."
+---
+
+## Pourquoi un PAT ?
+
+CNP utilise votre Personal Access Token (PAT) GitLab pour agir en votre nom : lire vos projets, pousser des fichiers de configuration, protéger des branches et déclencher des pipelines.
+
+Le token est stocké **en mémoire** dans le backend CNP et n'est jamais persisté sur disque.
+
+---
+
+## Créer un PAT sur GitLab
+
+<Steps>
+  <Step title="Accéder aux paramètres">
+    Connectez-vous à GitLab, puis allez dans **Profile → Preferences → Access Tokens**.
+  </Step>
+  <Step title="Créer un nouveau token">
+    Cliquez sur **Add new token** et remplissez :
+
+    | Champ | Valeur recommandée |
+    | --- | --- |
+    | Token name | `cnp-platform` |
+    | Expiration date | Dans 1 an maximum |
+    | Scopes | `api`, `write_repository` |
+  </Step>
+  <Step title="Copier le token">
+    Copiez le token généré — il ne sera affiché qu'une seule fois.
+  </Step>
+</Steps>
+
+### Scopes requis
+
+| Scope | Raison |
+| --- | --- |
+| `api` | Lecture/écriture de projets, variables CI, branches protégées, pipelines |
+| `write_repository` | Commit de fichiers de scaffold sur le dépôt |
+
+---
+
+## Enregistrer le PAT dans CNP
+
+1. Connectez-vous à la plateforme CNP
+2. Si le PAT n'est pas configuré, une bannière jaune s'affiche
+3. Cliquez sur **Configurer le token GitLab**
+4. Collez votre PAT et cliquez sur **Enregistrer**
+
+### Erreurs possibles
+
+| Erreur | Cause | Solution |
+| --- | --- | --- |
+| `Token GitLab invalide` | Token expiré ou incorrect | Générez un nouveau PAT |
+| `impossible de joindre GitLab` | Backend ne peut pas contacter GitLab | Vérifiez `GITLAB_BASE_URL` |
+
+---
+
+## Durée de vie
+
+Le PAT est perdu si le backend CNP redémarre. Reconfigurer le token prend moins d'une minute.
+
+<Tip>
+  Si vous travaillez sur une session longue, gardez votre PAT à portée pour le reconfigurer rapidement après un éventuel redémarrage.
+</Tip>

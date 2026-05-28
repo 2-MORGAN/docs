@@ -1,0 +1,58 @@
+---
+title: "Redéployer un service"
+description: "Comment forcer un nouveau cycle de build et déploiement sur un service existant."
+---
+
+## Quand redéployer ?
+
+Le redéploiement est utile pour :
+
+- Forcer un nouveau pipeline sans pousser de code
+- Re-synchroniser les fichiers de scaffold après une mise à jour des templates CNP
+- Récupérer d'un pipeline cassé
+
+---
+
+## Depuis le dashboard
+
+1. Trouvez le service dans la liste
+2. Cliquez sur **Redéployer**
+3. CNP exécute dans l'ordre :
+   - Re-scaffold (génère et pousse les fichiers CI/CD)
+   - Déclenche un pipeline GitLab sur la branche par défaut
+
+---
+
+## Ce que fait le redéploiement
+
+```text
+POST /api/services/{gitlab_id}/redeploy
+         │
+         ▼
+1. GetProject(id)           ← Récupère les infos actuelles
+2. ExtractFramework(topics) ← Détecte le framework via les topics
+3. RenderAll(framework)     ← Génère les fichiers depuis les templates
+4. UpsertScaffold(files)    ← Pousse (crée ou met à jour) les fichiers
+5. TriggerPipeline(branch)  ← Déclenche un nouveau pipeline
+```
+
+<Warning>
+  Le framework est détecté automatiquement depuis les topics GitLab. Si aucun topic de framework n'est trouvé, le redéploiement échoue avec `400 Bad Request`.
+</Warning>
+
+---
+
+## Gestion des erreurs
+
+| Code | Message | Cause |
+| --- | --- | --- |
+| `400` | `id invalide` | L'ID dans l'URL n'est pas un entier valide |
+| `400` | `framework non reconnu` | Aucun topic `go`/`nextjs`/`springboot` sur le projet |
+| `403` | `Token GitLab non configuré` | PAT absent |
+| `502` | `impossible de joindre GitLab` | GitLab inaccessible |
+
+---
+
+## Note sur l'échec de pipeline
+
+Si le déclenchement du pipeline échoue, le redéploiement réussit quand même (`200 OK`). L'erreur est loggée en `WARN`. Vous pouvez déclencher manuellement le pipeline depuis GitLab.
