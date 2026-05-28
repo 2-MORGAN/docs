@@ -1,0 +1,74 @@
+---
+title: "Pipeline CI/CD"
+description: "Comprendre comment CNP gère le cycle build → test → docker pour vos services."
+---
+
+## Vue d'ensemble
+
+CNP génère des pipelines GitLab CI prêts à l'emploi. Chaque pipeline suit un modèle en plusieurs **stages** séquentiels, adapté à chaque framework.
+
+## Stages communs
+
+| Stage | Frameworks | Rôle |
+| --- | --- | --- |
+| `build` | Go, Next.js | Compilation du code |
+| `test` | Go, Spring Boot | Exécution des tests |
+| `docker` | Tous | Build \+ push de l'image Docker |
+
+<Note>
+  Pour Next.js, il n'y a pas de stage `test` séparé car `npm run build` inclut la vérification TypeScript.
+</Note>
+
+## Build Docker (Kaniko)
+
+```yaml
+docker-build:
+  stage: docker
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+  script:
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+      --destination "${CI_REGISTRY_IMAGE}:latest"
+  only:
+    - main
+```
+
+<Warning>
+  Le stage Docker ne s'exécute que sur la branche `main`. Les branches de feature ne déclenchent que build/test.
+</Warning>
+
+## Variables CI disponibles
+
+| Variable | Source | Description |
+| --- | --- | --- |
+| `CI_REGISTRY` | GitLab (auto) | URL du registry |
+| `CI_REGISTRY_USER` | GitLab (auto) | Utilisateur registry |
+| `CI_REGISTRY_PASSWORD` | GitLab (auto) | Mot de passe registry |
+| `CI_REGISTRY_IMAGE` | GitLab (auto) | Chemin complet de l'image |
+| `CI_COMMIT_SHORT_SHA` | GitLab (auto) | SHA court du commit |
+| `REGISTRY_TOKEN` | CNP (injecté) | Token personnalisé |
+| `REGISTRY_URL` | CNP (injecté) | URL registry personnalisé |
+| `REGISTRY_USERNAME` | CNP (injecté) | Utilisateur registry personnalisé |
+
+## Protection de branche
+
+| Règle | Valeur |
+| --- | --- |
+| Push | Interdit (NoOne) |
+| Merge | Autorisé (Developer\+) |
+| Force push | Désactivé |
+
+## Déclenchement de pipeline
+
+Lors d'un **redéploiement**, CNP déclenche manuellement un pipeline via l'API GitLab.
+
+<Info>
+  L'échec du déclenchement de pipeline lors d'un redéploiement est loggué en `WARN` mais n'échoue pas la requête. Le scaffold est quand même mis à jour.
+</Info>

@@ -1,0 +1,89 @@
+---
+title: "Infrastructure"
+description: "Provisionnement du cluster Kubernetes sur Azure avec Terraform."
+---
+
+## Vue d'ensemble
+
+CNP est hébergé sur un cluster **Azure Kubernetes Service (AKS)** provisionné avec Terraform.
+
+| Paramètre | Valeur |
+| --- | --- |
+| Provider | Azure (azurerm) |
+| Région | `switzerlandnorth` |
+| Resource Group | `2MorganCNP` |
+| Cluster | `aks-cnp-dev` |
+| VM | `Standard_B2s_v2` |
+| Nodes | 1 (max 2) |
+| Réseau | kubenet |
+| Identité | SystemAssigned |
+
+---
+
+## Prérequis Terraform
+
+```bash
+# Connexion Azure
+az login
+az account set --subscription <subscription-id>
+
+# Initialiser Terraform
+cd terraform
+terraform init
+```
+
+---
+
+## Déployer le cluster
+
+```bash
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+Le `kubeconfig.yaml` est généré automatiquement dans `terraform/` avec les permissions `0600`.
+
+---
+
+## Variables Terraform
+
+| Variable | Défaut | Description |
+| --- | --- | --- |
+| `project_name` | `cnp` | Préfixe du cluster |
+| `environment` | `dev` | Environnement |
+| `resource_group_name` | `2MorganCNP` | Nom du resource group Azure |
+| `location` | `switzerlandnorth` | Région Azure |
+| `node_count` | `1` | Nombre de nodes (1-2 max) |
+| `vm_size` | `Standard_B2s_v2` | Taille des VMs |
+
+```bash
+# Surcharger depuis la CLI
+terraform apply -var="node_count=2" -var="environment=prod"
+```
+
+---
+
+## Utiliser le cluster
+
+```bash
+export KUBECONFIG=./terraform/kubeconfig.yaml
+kubectl get nodes
+```
+
+---
+
+## Limites compte étudiant
+
+<Warning>
+  Ce cluster est configuré pour un compte étudiant Azure :
+
+  - Maximum **2 nodes**
+  - VM `Standard_B2s_v2` (2 vCPU, 8 Go RAM)
+  - Certaines régions peuvent ne pas être disponibles
+</Warning>
+
+---
+
+## Déployer les applications sur AKS
+
+CNP ne gère pas le déploiement Kubernetes des applications générées. Les images Docker sont poussées vers le GitLab Container Registry — leur déploiement sur AKS nécessite des manifests Kubernetes supplémentaires (Deployment, Service, Ingress) à créer manuellement ou via Helm.

@@ -1,0 +1,68 @@
+---
+title: "GitLab"
+description: "Endpoint pour lister les dépôts GitLab accessibles."
+---
+
+Endpoint **protégé** — requiert `Authorization: Bearer <token>` et un PAT GitLab configuré.
+
+---
+
+## GET /api/gitlab/repositories
+
+Liste tous les projets GitLab dont l'utilisateur est membre (toutes pages, 100 par page).
+
+### Réponse `200 OK`
+
+```json
+[
+  {
+    "id": 12345678,
+    "name": "my-service",
+    "path_with_namespace": "group/my-service",
+    "web_url": "https://gitlab.com/group/my-service",
+    "clone_url": "https://gitlab.com/group/my-service.git",
+    "visibility": "private"
+  }
+]
+```
+
+### Champs de réponse
+
+| Champ | Type | Description |
+| --- | --- | --- |
+| `id` | `integer` | ID numérique GitLab — utilisé comme `repository_id` |
+| `name` | `string` | Nom du projet |
+| `path_with_namespace` | `string` | Chemin complet (`group/project`) |
+| `web_url` | `string` | URL web du projet |
+| `clone_url` | `string` | URL de clone HTTP |
+| `visibility` | `string` | `private`, `internal` ou `public` |
+
+### Erreurs
+
+| Status | Cause |
+| --- | --- |
+| `403` | PAT non configuré |
+| `502` | GitLab inaccessible |
+
+### Exemple cURL
+
+```bash
+curl https://api.cnp.example.com/api/gitlab/repositories \
+  -H "Authorization: Bearer $JWT"
+```
+
+---
+
+## Pagination
+
+L'endpoint récupère toutes les pages en suivant `X-Next-Page` de GitLab :
+
+```text
+Page 1 (100 projets) → Page 2 (100) → Page 3 (43) → 243 projets retournés
+```
+
+---
+
+## Usage dans le frontend
+
+La liste alimente le sélecteur de dépôt dans la modale **Configurer un service**. L'`id` du projet sélectionné est envoyé comme `repository_id`.

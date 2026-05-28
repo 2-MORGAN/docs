@@ -1,0 +1,84 @@
+---
+title: "Configuration"
+description: "Variables d'environnement requises pour déployer le backend CNP."
+---
+
+## Variables d'environnement
+
+Toutes les variables sont **obligatoires** — le backend panique au démarrage si l'une d'elles est manquante.
+
+| Variable | Description | Exemple |
+| --- | --- | --- |
+| `PORT` | Port d'écoute du serveur HTTP | `8080` |
+| `ADMIN_USERNAME` | Identifiant admin | `admin` |
+| `ADMIN_PASSWORD` | Mot de passe admin | `changeme` |
+| `JWT_SECRET` | Secret HMAC-SHA256 pour les tokens JWT | `your-256-bit-secret` |
+| `FRONTEND_URL` | URL du frontend (pour CORS) | `https://cnp.example.com` |
+| `GITLAB_BASE_URL` | URL de base de l'instance GitLab | `https://gitlab.com` |
+
+---
+
+## Fichier `.env`
+
+Le backend charge automatiquement un fichier `.env` s'il est présent :
+
+```bash
+PORT=8080
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=supersecret
+JWT_SECRET=my-very-long-secret-at-least-32-chars
+FRONTEND_URL=http://localhost:5173
+GITLAB_BASE_URL=https://gitlab.com
+```
+
+<Note>
+  Les variables déjà définies dans l'environnement ont priorité sur celles du `.env`.
+</Note>
+
+---
+
+## Configuration du frontend
+
+| Variable | Description | Exemple |
+| --- | --- | --- |
+| `VITE_API_URL` | URL de base du backend CNP | `https://api.cnp.example.com` |
+
+```bash
+# cnp-frontend/.env
+VITE_API_URL=http://localhost:8080
+```
+
+---
+
+## Sécurité
+
+<AccordionGroup>
+  <Accordion title="JWT Secret">
+    Utilisez un secret d'au moins 32 caractères. Générez-en un avec :
+
+    ```bash
+    openssl rand -base64 32
+    ```
+
+    Les tokens JWT signés avec HS256 expirent après 24 heures.
+  </Accordion>
+
+  <Accordion title="Mot de passe admin">
+    Comparé avec `subtle.ConstantTimeCompare` pour éviter les attaques par timing.
+  </Accordion>
+
+  <Accordion title="CORS">
+    Le backend n'autorise que l'origine définie dans `FRONTEND_URL`.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Timeouts serveur
+
+| Timeout | Valeur |
+| --- | --- |
+| Read timeout | 10 secondes |
+| Write timeout | 10 secondes |
+| Idle timeout | 60 secondes |
+| Request timeout | 30 secondes (Chi middleware) |

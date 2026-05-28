@@ -1,0 +1,94 @@
+---
+title: "Services"
+description: "Endpoints pour configurer, lister et redéployer les services CNP."
+---
+
+Tous les endpoints ci-dessous sont **protégés** — ils requièrent `Authorization: Bearer <token>`.
+
+---
+
+## POST /api/pat
+
+Enregistre le PAT GitLab de l'utilisateur connecté.
+
+```json
+{ "token": "glpat-xxxxxxxxxxxxxxxxxxxx" }
+```
+
+### Réponse `200 OK`
+
+```json
+{ "gitlab_username": "john.doe" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `400` | Token vide ou JSON malformé |
+| `422` | Token refusé par GitLab |
+| `502` | GitLab inaccessible |
+
+---
+
+## POST /api/services
+
+Scaffold un service sur le dépôt GitLab cible.
+
+```json
+{
+  "repository_id": 12345678,
+  "framework": "go"
+}
+```
+
+| Champ | Type | Valeurs |
+| --- | --- | --- |
+| `repository_id` | `integer` | ID numérique du projet GitLab |
+| `framework` | `string` | `go` \| `nextjs` \| `springboot` |
+
+### Réponse `201 Created`
+
+```json
+{
+  "name": "my-service",
+  "description": "Mon service Go",
+  "framework": "go",
+  "repo_url": "https://gitlab.com/group/my-service",
+  "clone_url": "https://gitlab.com/group/my-service.git",
+  "gitlab_id": 12345678,
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `400` | `repository_id` absent, framework invalide |
+| `403` | PAT non configuré |
+| `409` | Conflit Git lors du push |
+| `502` | GitLab inaccessible |
+
+---
+
+## GET /api/services
+
+Liste tous les services CNP (projets avec topic `cnp-2morgan`).
+
+Retourne un tableau `[]Service`. Vide si aucun service configuré.
+
+---
+
+## POST /api/services/{id}/redeploy
+
+Re-scaffolde un service et déclenche un nouveau pipeline.
+
+| Paramètre | Type | Description |
+| --- | --- | --- |
+| `id` | `integer` | `gitlab_id` du service |
+
+### Réponse `200 OK`
+
+Retourne l'objet `Service` mis à jour.
+
+```bash
+curl -X POST https://api.cnp.example.com/api/services/12345678/redeploy \
+  -H "Authorization: Bearer $JWT"
+```

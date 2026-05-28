@@ -1,0 +1,95 @@
+---
+title: "Authentification"
+description: "Connexion et gestion des tokens JWT pour l'API CNP."
+---
+
+## Vue d'ensemble
+
+L'API CNP utilise une authentification **JWT Bearer** (HMAC-SHA256). Pour accéder aux endpoints protégés :
+
+1. Obtenez un token via `POST /auth/login`
+2. Incluez ce token dans le header `Authorization: Bearer <token>`
+
+---
+
+## POST /auth/login
+
+Authentifie l'utilisateur et retourne un token JWT.
+
+**Endpoint public** — aucun token requis.
+
+### Corps de la requête
+
+```json
+{
+  "username": "admin",
+  "password": "votre-mot-de-passe"
+}
+```
+
+### Réponse succès `200 OK`
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### Erreurs
+
+| Status | Message | Cause |
+| --- | --- | --- |
+| `400` | `corps de requête invalide` | JSON malformé |
+| `401` | `identifiants invalides` | Username ou password incorrect |
+| `500` | `erreur génération token` | Erreur serveur interne |
+
+### Exemple cURL
+
+```bash
+curl -X POST https://api.cnp.example.com/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "secret"}'
+```
+
+---
+
+## GET /api/me
+
+Retourne les informations de l'utilisateur connecté. **Protégé** — token JWT requis.
+
+### Réponse succès `200 OK`
+
+```json
+{ "username": "admin" }
+```
+
+### Exemple cURL
+
+```bash
+curl https://api.cnp.example.com/api/me \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+---
+
+## GET /health
+
+Endpoint de santé, toujours accessible.
+
+```json
+{ "status": "ok" }
+```
+
+---
+
+## Structure du JWT
+
+```json
+{
+  "username": "admin",
+  "exp": 1717000000,
+  "iat": 1716913600
+}
+```
+
+Signé avec **HS256**, expire après **24h**.

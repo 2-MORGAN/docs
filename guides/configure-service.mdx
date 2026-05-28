@@ -1,0 +1,75 @@
+---
+title: "Configurer un service"
+description: "Guide étape par étape pour scaffolder un nouveau service cloud-native sur GitLab."
+---
+
+## Prérequis
+
+- Être connecté à CNP
+- Avoir [configuré votre PAT GitLab](/guides/pat-setup)
+- Avoir un dépôt GitLab existant (peut être vide)
+
+---
+
+## Depuis le dashboard
+
+1. Cliquez sur **Nouveau service** (en haut à droite du dashboard)
+2. La modale **Configurer un service** s'ouvre
+
+### Sélectionner le dépôt
+
+Le champ affiche tous vos projets GitLab dont vous êtes membre (jusqu'à 100 par page).
+
+### Choisir le framework
+
+| Framework | Quand l'utiliser |
+| --- | --- |
+| `go` | Service backend en Go |
+| `nextjs` | Application web Next.js (TypeScript) |
+| `springboot` | Service backend Java Spring Boot |
+
+### Valider
+
+Cliquez sur **Configurer**. La plateforme :
+
+1. Récupère les infos du projet GitLab
+2. Génère les fichiers via les templates
+3. Pousse les fichiers sur la branche par défaut
+4. Configure la protection de branche
+5. Ajoute les topics `cnp-2morgan`, `cloud-native`, `<framework>`
+6. Injecte les variables CI
+
+---
+
+## Gestion des erreurs
+
+| Code | Message | Action |
+| --- | --- | --- |
+| `409 Conflict` | Ce repository est déjà configuré | Vérifiez l'état du dépôt |
+| `403 Forbidden` | Token GitLab non configuré | [Configurez votre PAT](/guides/pat-setup) |
+| `400 Bad Request` | framework est requis | Sélectionnez un framework valide |
+
+---
+
+## Après la configuration
+
+<Checklist>
+  * [ ] Le service apparaît dans le dashboard CNP
+  * [ ] Le dépôt GitLab contient le `.gitlab-ci.yml`
+  * [ ] Le dépôt GitLab contient le `Dockerfile`
+  * [ ] Les topics `cnp-2morgan` et le framework sont visibles sur le projet
+  * [ ] Un premier pipeline CI est en cours
+  * [ ] Les variables CI `REGISTRY_*` existent dans GitLab → Settings → CI/CD
+</Checklist>
+
+---
+
+## Remplacer les placeholders de registry
+
+Dans GitLab **Settings → CI/CD → Variables** :
+
+```text
+REGISTRY_URL      → registry.gitlab.com
+REGISTRY_USERNAME → votre nom d'utilisateur GitLab
+REGISTRY_TOKEN    → votre PAT avec scope read_registry / write_registry
+```

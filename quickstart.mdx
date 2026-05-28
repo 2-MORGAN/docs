@@ -1,47 +1,96 @@
+## Prérequis
+
+- Un compte GitLab avec un dépôt existant
+- Un [Personal Access Token (PAT)](/guides/pat-setup) GitLab avec les scopes `api` et `write_repository`
+- Accès à l'instance CNP fournie par votre administrateur
+
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+
+## Étape 1 — Connexion
+
+Rendez-vous sur l'URL de la plateforme CNP et connectez-vous avec les identifiants administrateur.
+
+```text
+Username: <fourni par l'admin>
+Password: <fourni par l'admin>
+```
+
+<Note>
+  CNP utilise une authentification à compte unique (admin). Le token JWT est valide pendant la session courante et stocké dans le localStorage.
+</Note>
+
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+## Étape 2 — Configurer votre PAT GitLab
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+Après la connexion, une bannière s'affiche si votre PAT GitLab n'est pas encore configuré.
 
-## Prerequisites
+1. Cliquez sur **Configurer le token GitLab**
+2. Collez votre PAT dans le champ
+3. Cliquez sur **Enregistrer**
 
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
-
-<Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
-
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
-
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
-
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+CNP valide immédiatement le token en appelant l'API GitLab. Si le token est valide, votre nom d'utilisateur GitLab s'affiche.
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  Voir [Comment créer un PAT GitLab](/guides/pat-setup) pour les instructions détaillées.
 </Tip>
+
+---
+
+## Étape 3 — Configurer un service
+
+1. Depuis le **Dashboard**, cliquez sur **Nouveau service**
+2. Dans la modale, sélectionnez le dépôt GitLab cible dans la liste déroulante
+3. Choisissez le framework correspondant à votre projet :
+   - `go` pour un service Go
+   - `nextjs` pour une application Next.js
+   - `springboot` pour un service Spring Boot
+4. Cliquez sur **Configurer**
+
+<Warning>
+  CNP va pousser des fichiers directement sur la branche par défaut de votre dépôt (`main` ou `master`). Assurez-vous que votre branche est propre avant de continuer.
+</Warning>
+
+---
+
+## Étape 4 — Vérifier le pipeline
+
+CNP a automatiquement :
+
+- Poussé le `.gitlab-ci.yml` et le `Dockerfile` (\+ fichiers de config selon le framework)
+- Configuré la protection de la branche principale
+- Injecté les variables CI (`REGISTRY_TOKEN`, `REGISTRY_URL`, `REGISTRY_USERNAME`)
+
+Rendez-vous dans votre projet GitLab → **CI/CD → Pipelines** pour voir le pipeline en cours.
+
+---
+
+## Étape 5 — Redéployer (optionnel)
+
+Pour forcer un nouveau déploiement depuis le dashboard :
+
+1. Trouvez votre service dans la liste
+2. Cliquez sur **Redéployer**
+
+CNP re-génère les fichiers de scaffold et déclenche un nouveau pipeline sur la branche par défaut.
+
+---
+
+## Résultat
+
+Votre service est maintenant :
+
+<Steps>
+  <Step title="Scaffoldé">
+    Les fichiers de CI/CD et Docker sont présents sur votre dépôt
+  </Step>
+  <Step title="Taggé">
+    Les topics GitLab `cnp-2morgan`, `cloud-native` et votre framework sont ajoutés au projet
+  </Step>
+  <Step title="Protégé">
+    La branche principale est protégée (push désactivé, merge ouvert aux Developers)
+  </Step>
+  <Step title="Prêt à builder">
+    Le pipeline démarre automatiquement à chaque push sur `main`
+  </Step>
+</Steps>
