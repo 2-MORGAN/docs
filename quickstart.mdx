@@ -1,3 +1,7 @@
+---
+title: "quickstart"
+---
+
 ## Prérequis
 
 - Un compte GitLab avec un dépôt existant
@@ -8,15 +12,26 @@
 
 ## Étape 1 — Connexion
 
-Rendez-vous sur l'URL de la plateforme CNP et connectez-vous avec les identifiants administrateur.
+Rendez-vous sur l'URL de la plateforme CNP. Deux méthodes de connexion sont disponibles :
 
-```text
-Username: <fourni par l'admin>
-Password: <fourni par l'admin>
-```
+<Tabs>
+  <Tab title="Microsoft SSO (recommandé)">
+    Cliquez sur **Se connecter avec Microsoft** et authentifiez-vous avec votre compte `@epita.fr`.
+
+    CNP utilise MSAL pour obtenir un ID Token Azure AD, qui est ensuite validé côté backend. Seuls les comptes du domaine autorisé (`epita.fr`) sont acceptés.
+  </Tab>
+  <Tab title="Compte admin local">
+    Saisissez les identifiants admin fournis par votre administrateur :
+
+    ```text
+    Username: <fourni par l'admin>
+    Password: <fourni par l'admin>
+    ```
+  </Tab>
+</Tabs>
 
 <Note>
-  CNP utilise une authentification à compte unique (admin). Le token JWT est valide pendant la session courante et stocké dans le localStorage.
+  Le token JWT est valide 24h et stocké dans le localStorage. Il est identique quelle que soit la méthode de connexion utilisée.
 </Note>
 
 ---
