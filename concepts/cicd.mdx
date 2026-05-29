@@ -3,17 +3,25 @@ title: "Pipeline CI/CD"
 description: "Comprendre comment CNP gère le cycle build → test → docker pour vos services."
 ---
 
-## Vue d'ensemble
+## Stages par framework
 
-CNP génère des pipelines GitLab CI prêts à l'emploi. Chaque pipeline suit un modèle en plusieurs **stages** séquentiels, adapté à chaque framework.
+```mermaid
+flowchart LR
+    subgraph Go
+        direction LR
+        G1["build\ngolang:1.22-alpine"] --> G2["test\ngolang:1.22-alpine"] --> G3["docker\nkaniko"]
+    end
 
-## Stages communs
+    subgraph NextJS["Next.js"]
+        direction LR
+        N1["build\nnode:20-alpine\ncache npm"] --> N2["docker\nkaniko"]
+    end
 
-| Stage | Frameworks | Rôle |
-| --- | --- | --- |
-| `build` | Go, Next.js | Compilation du code |
-| `test` | Go, Spring Boot | Exécution des tests |
-| `docker` | Tous | Build \+ push de l'image Docker |
+    subgraph SpringBoot["Spring Boot"]
+        direction LR
+        S1["test\nmaven:3.9-jdk21"] --> S2["build\nmaven:3.9-jdk21"] --> S3["docker\nkaniko"]
+    end
+```
 
 <Note>
   Pour Next.js, il n'y a pas de stage `test` séparé car `npm run build` inclut la vérification TypeScript.
@@ -59,11 +67,12 @@ docker-build:
 
 ## Protection de branche
 
-| Règle | Valeur |
-| --- | --- |
-| Push | Interdit (NoOne) |
-| Merge | Autorisé (Developer\+) |
-| Force push | Désactivé |
+```mermaid
+flowchart LR
+    Dev["👨‍💻 Developer"] -->|"merge autorisé via MR"| Main(["🔒 branche main"])
+    Dev -. "push direct ✗" .-> Main
+    Force["⚡ Force push"] -. "désactivé ✗" .-> Main
+```
 
 ## Déclenchement de pipeline
 

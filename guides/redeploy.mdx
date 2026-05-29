@@ -25,19 +25,20 @@ Le redéploiement est utile pour :
 
 ## Ce que fait le redéploiement
 
-```text
-POST /api/services/{gitlab_id}/redeploy
-         │
-         ▼
-1. GetProject(id)           ← Récupère les infos actuelles
-2. ExtractFramework(topics) ← Détecte le framework via les topics
-3. RenderAll(framework)     ← Génère les fichiers depuis les templates
-4. UpsertScaffold(files)    ← Pousse (crée ou met à jour) les fichiers
-5. TriggerPipeline(branch)  ← Déclenche un nouveau pipeline
+```mermaid
+flowchart TD
+    A(["POST /api/services/id/redeploy"]) --> B["GetProject\ninfos actuelles du projet"]
+    B --> C["ExtractFramework\ndepuis les topics GitLab"]
+    C --> D{"Framework\ndétecté ?"}
+    D -->|Non| E["❌ 400 Bad Request\nframework non reconnu"]
+    D -->|Oui| F["RenderAll\ngénère fichiers depuis templates"]
+    F --> G["UpsertScaffold\ncrée ou met à jour les fichiers"]
+    G --> H["TriggerPipeline\nnouveau pipeline sur main"]
+    H --> I(["✅ 200 OK · Service mis à jour"])
 ```
 
 <Warning>
-  Le framework est détecté automatiquement depuis les topics GitLab. Si aucun topic de framework n'est trouvé, le redéploiement échoue avec `400 Bad Request`.
+  Le framework est détecté automatiquement depuis les topics GitLab. Si aucun topic `go`/`nextjs`/`springboot` n'est trouvé, le redéploiement échoue avec `400 Bad Request`.
 </Warning>
 
 ---
@@ -47,7 +48,7 @@ POST /api/services/{gitlab_id}/redeploy
 | Code | Message | Cause |
 | --- | --- | --- |
 | `400` | `id invalide` | L'ID dans l'URL n'est pas un entier valide |
-| `400` | `framework non reconnu` | Aucun topic `go`/`nextjs`/`springboot` sur le projet |
+| `400` | `framework non reconnu` | Aucun topic de framework sur le projet |
 | `403` | `Token GitLab non configuré` | PAT absent |
 | `502` | `impossible de joindre GitLab` | GitLab inaccessible |
 

@@ -3,43 +3,42 @@ title: "Architecture"
 description: "Vue d'ensemble des composants de la plateforme CNP."
 ---
 
-## Diagramme général
+## Vue d'ensemble
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                        Utilisateur                          │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTPS
-┌──────────────────────────▼──────────────────────────────────┐
-│                    CNP Frontend                             │
-│              React + TypeScript + Vite                      │
-│   LoginPage / DashboardPage / ConfigureServiceModal         │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ REST API (Bearer JWT)
-┌──────────────────────────▼──────────────────────────────────┐
-│                    CNP Backend (Go)                         │
-│                                                             │
-│  /auth/login          →  AuthHandler                        │
-│  /api/me              →  AuthHandler                        │
-│  /api/pat             →  ServiceHandler                     │
-│  /api/gitlab/repositories → ServiceHandler                  │
-│  /api/services        →  ServiceHandler + Scaffold          │
-│  /api/services/{id}/redeploy → ServiceHandler + Scaffold    │
-│                                                             │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  JWT Auth   │  │  PATStore    │  │  Scaffold Engine │  │
-│  │  (HS256)    │  │  (in-memory) │  │  (Go templates)  │  │
-│  └─────────────┘  └──────────────┘  └──────────────────┘  │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ GitLab API v4
-┌──────────────────────────▼──────────────────────────────────┐
-│                       GitLab                                │
-│                                                             │
-│  Projects API  ·  Repository Files API  ·  Pipelines API   │
-│  Variables API  ·  Protected Branches API                   │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    User(["👤 Utilisateur"])
+    User -->|HTTPS| Frontend
 
-Infrastructure : Azure AKS (provisionné via Terraform)
+    subgraph Frontend["CNP Frontend — React + TypeScript + Vite"]
+        LP[LoginPage]
+        DP[DashboardPage]
+        CSM[ConfigureServiceModal]
+    end
+
+    Frontend -->|"REST API · Bearer JWT"| Backend
+
+    subgraph Backend["CNP Backend — Go / Chi"]
+        AH["AuthHandler\n/auth/login · /api/me"]
+        SH["ServiceHandler\n/api/pat · /api/services\n/api/gitlab/repositories"]
+        SE["Scaffold Engine\nGo templates embed"]
+        PS["PATStore · in-memory"]
+        JW["JWT HS256"]
+    end
+
+    Backend -->|"GitLab API v4"| GitLab
+
+    subgraph GitLab["GitLab"]
+        PROJ[Projects API]
+        FILES[Repository Files API]
+        PIPE[Pipelines API]
+        VARS[Variables API]
+        BRANCH[Protected Branches API]
+    end
+
+    subgraph Infra["Infrastructure — Azure AKS · Terraform"]
+        AKS["Cluster AKS · switzerlandnorth"]
+    end
 ```
 
 ## Composants
@@ -103,8 +102,6 @@ Variables disponibles dans les templates :
 
 ### Infrastructure
 
-Cluster AKS sur Azure, provisionné avec Terraform :
-
 | Paramètre | Valeur |
 | --- | --- |
 | Région | `switzerlandnorth` |
@@ -114,20 +111,24 @@ Cluster AKS sur Azure, provisionné avec Terraform :
 
 ## Flux de configuration d'un service
 
-```text
-Frontend                    Backend                     GitLab
-   │                           │                           │
-   │  POST /api/services       │                           │
-   │──────────────────────────►│                           │
-   │                           │  GetProject(id)           │
-   │                           │──────────────────────────►│
-   │                           │  RenderAll(framework)     │
-   │                           │  UpsertScaffold (commit)  │
-   │                           │──────────────────────────►│
-   │                           │  SetupBranchProtection    │
-   │                           │──────────────────────────►│
-   │                           │  SetTopics + InjectVars   │
-   │                           │──────────────────────────►│
-   │  201 Created {Service}    │                           │
-   │◄──────────────────────────│                           │
+```mermaid
+sequenceDiagram
+    actor U as Utilisateur
+    participant F as Frontend
+    participant B as Backend
+    participant G as GitLab
+
+    U->>F: Sélectionne repo + framework
+    F->>B: POST /api/services
+    B->>G: GetProject(id)
+    G-->>B: Infos projet
+    B->>B: RenderAll(framework)
+    Note over B: Génère fichiers depuis templates
+    B->>G: UpsertScaffold — commit fichiers
+    G-->>B: OK
+    B->>G: SetupBranchProtection
+    B->>G: SetTopics (cnp-2morgan, cloud-native, framework)
+    B->>G: InjectCIVariables (REGISTRY_*)
+    B-->>F: 201 Created Service
+    F-->>U: Service affiché dans le dashboard
 ```

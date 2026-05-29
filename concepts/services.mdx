@@ -23,20 +23,12 @@ interface Service {
 
 ## Cycle de vie
 
-```text
-Dépôt GitLab
-     │
-     │  POST /api/services
-     ▼
-Scaffold (fichiers CI/CD + Docker)
-     │
-     │  Topics : cnp-2morgan, cloud-native, <framework>
-     ▼
-Service actif
-     │
-     │  POST /api/services/{id}/redeploy
-     ▼
-Nouveau pipeline déclenché
+```mermaid
+flowchart TD
+    A([Dépôt GitLab]) -->|"POST /api/services"| B["Scaffold\nfichiers CI/CD + Docker"]
+    B -->|"topics: cnp-2morgan · cloud-native · framework"| C([Service actif])
+    C -->|"POST /api/services/id/redeploy"| D["Re-scaffold\n+ TriggerPipeline"]
+    D --> C
 ```
 
 ## Détection des services existants
