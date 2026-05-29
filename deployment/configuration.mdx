@@ -3,18 +3,21 @@ title: "Configuration"
 description: "Variables d'environnement requises pour déployer le backend CNP."
 ---
 
-## Variables d'environnement
+## Variables d'environnement — Backend
 
 Toutes les variables sont **obligatoires** — le backend panique au démarrage si l'une d'elles est manquante.
 
 | Variable | Description | Exemple |
 | --- | --- | --- |
 | `PORT` | Port d'écoute du serveur HTTP | `8080` |
-| `ADMIN_USERNAME` | Identifiant admin | `admin` |
-| `ADMIN_PASSWORD` | Mot de passe admin | `changeme` |
+| `ADMIN_USERNAME` | Identifiant admin local | `admin` |
+| `ADMIN_PASSWORD` | Mot de passe admin local | `changeme` |
 | `JWT_SECRET` | Secret HMAC-SHA256 pour les tokens JWT | `your-256-bit-secret` |
 | `FRONTEND_URL` | URL du frontend (pour CORS) | `https://cnp.example.com` |
 | `GITLAB_BASE_URL` | URL de base de l'instance GitLab | `https://gitlab.com` |
+| `MICROSOFT_CLIENT_ID` | Client ID de l'app Azure AD | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `MICROSOFT_TENANT_ID` | Tenant ID Azure AD (EPITA) | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `MICROSOFT_ALLOWED_DOMAIN` | Domaine email autorisé pour le SSO | `epita.fr` |
 
 ---
 
@@ -29,6 +32,11 @@ ADMIN_PASSWORD=supersecret
 JWT_SECRET=my-very-long-secret-at-least-32-chars
 FRONTEND_URL=http://localhost:5173
 GITLAB_BASE_URL=https://gitlab.com
+
+# Microsoft SSO (Azure AD)
+MICROSOFT_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_ALLOWED_DOMAIN=epita.fr
 ```
 
 <Note>
@@ -37,7 +45,7 @@ GITLAB_BASE_URL=https://gitlab.com
 
 ---
 
-## Configuration du frontend
+## Variables d'environnement — Frontend
 
 | Variable | Description | Exemple |
 | --- | --- | --- |
@@ -47,6 +55,47 @@ GITLAB_BASE_URL=https://gitlab.com
 # cnp-frontend/.env
 VITE_API_URL=http://localhost:8080
 ```
+
+---
+
+## Lancer la plateforme avec Docker Compose
+
+Le fichier `docker-compose.yml` à la racine du projet démarre le backend et le frontend en un seul appel :
+
+```bash
+docker compose up --build
+```
+
+| Service | Port exposé | Description |
+| --- | --- | --- |
+| `backend` | `8080` | API Go, charge `cnp-backend/.env` |
+| `frontend` | `5173` | Frontend React servi par Nginx |
+
+Le frontend est compilé en mode production (`npm run build`) puis servi par **Nginx** avec le routage SPA (`try_files $uri /index.html`). L'URL du backend est injectée à la compilation via `VITE_API_URL`.
+
+```yaml
+services:
+  backend:
+    build: ./cnp-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./cnp-backend/.env
+
+  frontend:
+    build:
+      context: ./cnp-frontend
+      args:
+        VITE_API_URL: http://localhost:8080
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+```
+
+<Warning>
+  En production, remplacez `http://localhost:8080` par l'URL publique du backend et configurez TLS devant Nginx.
+</Warning>
 
 ---
 
@@ -61,6 +110,16 @@ VITE_API_URL=http://localhost:8080
     ```
 
     Les tokens JWT signés avec HS256 expirent après 24 heures.
+  </Accordion>
+
+  <Accordion title="Microsoft SSO — Azure AD">
+    Les ID Tokens Microsoft sont validés via les clés JWKS publiques de Microsoft (mis en cache 1h). Le backend vérifie :
+
+    - La signature RSA du token
+    - L'audience (`MICROSOFT_CLIENT_ID`)
+    - L'issuer (`login.microsoftonline.com/<TENANT_ID>/v2.0`)
+    - Le tenant ID du token
+    - Le domaine email (`@MICROSOFT_ALLOWED_DOMAIN`)
   </Accordion>
 
   <Accordion title="Mot de passe admin">

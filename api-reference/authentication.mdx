@@ -5,16 +5,24 @@ description: "Connexion et gestion des tokens JWT pour l'API CNP."
 
 ## Vue d'ensemble
 
-L'API CNP utilise une authentification **JWT Bearer** (HMAC-SHA256). Pour accéder aux endpoints protégés :
+L'API CNP supporte deux méthodes d'authentification, toutes deux retournant un **JWT Bearer** (HMAC-SHA256) :
 
-1. Obtenez un token via `POST /auth/login`
-2. Incluez ce token dans le header `Authorization: Bearer <token>`
+| Méthode | Endpoint | Usage |
+| --- | --- | --- |
+| Compte admin local | `POST /auth/login` | Identifiants admin configurés dans `.env` |
+| Microsoft SSO | `POST /auth/microsoft` | Connexion via compte Microsoft Azure AD (EPITA) |
+
+Une fois connecté, incluez le token dans chaque requête protégée :
+
+```http
+Authorization: Bearer <token>
+```
 
 ---
 
 ## POST /auth/login
 
-Authentifie l'utilisateur et retourne un token JWT.
+Authentifie l'utilisateur avec les identifiants admin locaux et retourne un token JWT.
 
 **Endpoint public** — aucun token requis.
 
@@ -53,6 +61,64 @@ curl -X POST https://api.cnp.example.com/auth/login \
 
 ---
 
+## POST /auth/microsoft
+
+Authentifie un utilisateur via un **ID Token Microsoft Azure AD** et retourne un JWT CNP.
+
+**Endpoint public** — aucun token requis.
+
+Le frontend obtient l'ID Token directement depuis Microsoft (MSAL / popup OAuth), puis l'envoie au backend qui le valide via les clés JWKS publiques de Microsoft (`login.microsoftonline.com`).
+
+<Note>
+  Seuls les comptes du tenant et du domaine configurés dans `MICROSOFT_TENANT_ID` / `MICROSOFT_ALLOWED_DOMAIN` sont acceptés.
+</Note>
+
+### Corps de la requête
+
+```json
+{
+  "id_token": "<ID Token Microsoft obtenu côté client>"
+}
+```
+
+### Réponse succès `200 OK`
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "username": "prenom.nom@epita.fr",
+  "email": "prenom.nom@epita.fr",
+  "name": "Prénom Nom"
+}
+```
+
+### Erreurs
+
+| Status | Message | Cause |
+| --- | --- | --- |
+| `400` | `corps de requête invalide` | JSON malformé |
+| `400` | `id_token manquant` | Champ `id_token` vide |
+| `401` | `connexion Microsoft refusée` | Token invalide, tenant non autorisé, domaine non autorisé |
+| `500` | `erreur génération token` | Erreur serveur interne |
+
+### Flux complet
+
+```text
+Frontend                     Backend                        Microsoft
+   │                            │                               │
+   │── MSAL popup ─────────────────────────────────────────────▶│
+   │◀─ id_token ────────────────────────────────────────────────│
+   │                            │                               │
+   │── POST /auth/microsoft ───▶│                               │
+   │   { id_token: "..." }      │── GET JWKS ──────────────────▶│
+   │                            │◀─ clés publiques ─────────────│
+   │                            │── Valide signature + claims   │
+   │                            │── Vérifie tenant + domaine    │
+   │◀─ { token, username, ... }─│                               │
+```
+
+---
+
 ## GET /api/me
 
 Retourne les informations de l'utilisateur connecté. **Protégé** — token JWT requis.
@@ -60,7 +126,7 @@ Retourne les informations de l'utilisateur connecté. **Protégé** — token JW
 ### Réponse succès `200 OK`
 
 ```json
-{ "username": "admin" }
+{ "username": "prenom.nom@epita.fr" }
 ```
 
 ### Exemple cURL
@@ -86,10 +152,10 @@ Endpoint de santé, toujours accessible.
 
 ```json
 {
-  "username": "admin",
+  "username": "prenom.nom@epita.fr",
   "exp": 1717000000,
   "iat": 1716913600
 }
 ```
 
-Signé avec **HS256**, expire après **24h**.
+Signé avec **HS256**, expire après **24h**. Valable quelle que soit la méthode de connexion utilisée.
