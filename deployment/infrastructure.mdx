@@ -5,36 +5,37 @@ description: "Provisionnement du cluster Kubernetes sur Azure avec Terraform."
 
 ## Vue d'ensemble
 
-CNP est hébergé sur un cluster **Azure Kubernetes Service (AKS)** provisionné avec Terraform.
+```mermaid
+flowchart TD
+    TF[Terraform] -->|"provisionne"| AKS["Azure AKS\nswitzerlandnorth"]
+    AKS --> ArgoCD["ArgoCD\nnamespace: argocd"]
+    AKS --> Traefik["Traefik Ingress\nLoadBalancer Azure"]
+    ArgoCD -->|"GitOps sync"| Apps["Services étudiants\nnamespace: student-apps"]
+    Traefik --> Apps
+```
 
-| Paramètre | Valeur |
+## Ressources Terraform
+
+| Ressource | Description |
 | --- | --- |
-| Provider | Azure (azurerm) |
-| Région | `switzerlandnorth` |
-| Resource Group | `2MorganCNP` |
-| Cluster | `aks-cnp-dev` |
-| VM | `Standard_B2s_v2` |
-| Nodes | 1 (max 2) |
-| Réseau | kubenet |
-| Identité | SystemAssigned |
+| `azurerm_kubernetes_cluster` | Cluster AKS `Standard_B2s_v2`, `switzerlandnorth` |
+| `argocd` (Helm) | ArgoCD déployé sur le cluster |
+| `traefik` (Helm) | Ingress controller Traefik, exposé en LoadBalancer |
 
 ---
 
-## Prérequis Terraform
+## Prérequis
 
 ```bash
-# Connexion Azure
 az login
 az account set --subscription <subscription-id>
-
-# Initialiser Terraform
 cd terraform
 terraform init
 ```
 
 ---
 
-## Déployer le cluster
+## Déployer
 
 ```bash
 terraform plan -out=tfplan
@@ -51,13 +52,12 @@ Le `kubeconfig.yaml` est généré automatiquement dans `terraform/` avec les pe
 | --- | --- | --- |
 | `project_name` | `cnp` | Préfixe du cluster |
 | `environment` | `dev` | Environnement |
-| `resource_group_name` | `2MorganCNP` | Nom du resource group Azure |
+| `resource_group_name` | `2MorganCNP` | Resource group Azure |
 | `location` | `switzerlandnorth` | Région Azure |
 | `node_count` | `1` | Nombre de nodes (1-2 max) |
 | `vm_size` | `Standard_B2s_v2` | Taille des VMs |
 
 ```bash
-# Surcharger depuis la CLI
 terraform apply -var="node_count=2" -var="environment=prod"
 ```
 
@@ -67,12 +67,47 @@ terraform apply -var="node_count=2" -var="environment=prod"
 
 ```bash
 export KUBECONFIG=./terraform/kubeconfig.yaml
+
+# Vérifier les nodes
 kubectl get nodes
+
+# Vérifier ArgoCD
+kubectl get pods -n argocd
+
+# Vérifier Traefik
+kubectl get svc -n traefik
 ```
 
 ---
 
-## Limites compte étudiant
+## ArgoCD
+
+ArgoCD surveille le dossier `k8s/` de chaque service et applique automatiquement les changements.
+
+```bash
+# Accéder à l'UI ArgoCD
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+# Récupérer le mot de passe admin initial
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d
+```
+
+---
+
+## Traefik
+
+Traefik est exposé via un LoadBalancer Azure et reçoit une IP externe automatiquement.
+
+```bash
+# Récupérer l'IP externe de Traefik
+kubectl get svc -n traefik traefik \
+  -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
+```
+
+Cette IP est celle retournée dans `service.deployment.external_ip` par l'API CNP.
+
+---
 
 <Warning>
   Ce cluster est configuré pour un compte étudiant Azure :
@@ -81,9 +116,3 @@ kubectl get nodes
   - VM `Standard_B2s_v2` (2 vCPU, 8 Go RAM)
   - Certaines régions peuvent ne pas être disponibles
 </Warning>
-
----
-
-## Déployer les applications sur AKS
-
-CNP ne gère pas le déploiement Kubernetes des applications générées. Les images Docker sont poussées vers le GitLab Container Registry — leur déploiement sur AKS nécessite des manifests Kubernetes supplémentaires (Deployment, Service, Ingress) à créer manuellement ou via Helm.

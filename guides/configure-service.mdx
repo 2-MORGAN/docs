@@ -7,7 +7,7 @@ description: "Guide étape par étape pour scaffolder un nouveau service cloud-n
 
 - Être connecté à CNP
 - Avoir [configuré votre PAT GitLab](/guides/pat-setup)
-- Avoir un dépôt GitLab existant (peut être vide)
+- Avoir un dépôt GitLab existant (peut être vide ou contenir du code)
 
 ---
 
@@ -22,22 +22,41 @@ Le champ affiche tous vos projets GitLab dont vous êtes membre (jusqu'à 100 pa
 
 ### Choisir le framework
 
-| Framework | Quand l'utiliser |
+Le framework peut être :
+
+**Détection automatique** (recommandé) — laissez le champ vide. CNP analyse les fichiers du dépôt :
+
+| Fichier | Framework détecté |
 | --- | --- |
-| `go` | Service backend en Go |
-| `nextjs` | Application web Next.js (TypeScript) |
-| `springboot` | Service backend Java Spring Boot |
+| `go.mod` / `go.work` | Go |
+| `next.config.*` | Next.js |
+| `nest-cli.json` | NestJS |
+| `manage.py` | Django |
+| `pom.xml` → spring-boot | Spring Boot |
+
+**Sélection manuelle** — choisissez parmi :
+
+| Framework | Stack |
+| --- | --- |
+| `go` | Service backend Go |
+| `nextjs` | Application Next.js TypeScript |
+| `nestjs` | API NestJS TypeScript |
+| `springboot` | Service Java Spring Boot |
+| `django` | Application Python Django |
 
 ### Valider
 
-Cliquez sur **Configurer**. La plateforme :
+Cliquez sur **Configurer**. CNP exécute séquentiellement :
 
 1. Récupère les infos du projet GitLab
-2. Génère les fichiers via les templates
-3. Pousse les fichiers sur la branche par défaut
-4. Configure la protection de branche
-5. Ajoute les topics `cnp-2morgan`, `cloud-native`, `<framework>`
-6. Injecte les variables CI
+2. Détecte le framework (si non fourni)
+3. Génère les fichiers via les templates (CI/CD \+ Docker \+ K8s manifests)
+4. Pousse les fichiers sur la branche par défaut
+5. Configure la protection de branche
+6. Ajoute les topics GitLab
+7. Injecte les variables CI
+8. Crée les deploy tokens (repo \+ registry)
+9. Synchronise ArgoCD (secret repo, secret registry, Application)
 
 ---
 
@@ -47,19 +66,19 @@ Cliquez sur **Configurer**. La plateforme :
 | --- | --- | --- |
 | `409 Conflict` | Ce repository est déjà configuré | Vérifiez l'état du dépôt |
 | `403 Forbidden` | Token GitLab non configuré | [Configurez votre PAT](/guides/pat-setup) |
-| `400 Bad Request` | framework est requis | Sélectionnez un framework valide |
+| `400` | framework non reconnu, selection manuelle requise | Spécifiez le framework manuellement |
+| `500` | repository configuré mais enregistrement de déploiement échoué | ArgoCD indisponible — réessayez avec redeploy |
 
 ---
 
 ## Après la configuration
 
 <Checklist>
-  * [ ] Le service apparaît dans le dashboard CNP
-  * [ ] Le dépôt GitLab contient le `.gitlab-ci.yml`
-  * [ ] Le dépôt GitLab contient le `Dockerfile`
+  * [ ] Le service apparaît dans le dashboard avec son URL externe
+  * [ ] Le dépôt GitLab contient `.gitlab-ci.yml`, `Dockerfile` et `k8s/`
   * [ ] Les topics `cnp-2morgan` et le framework sont visibles sur le projet
   * [ ] Un premier pipeline CI est en cours
-  * [ ] Les variables CI `REGISTRY_*` existent dans GitLab → Settings → CI/CD
+  * [ ] L'application ArgoCD est visible dans le dashboard ArgoCD
 </Checklist>
 
 ---
@@ -69,7 +88,7 @@ Cliquez sur **Configurer**. La plateforme :
 Dans GitLab **Settings → CI/CD → Variables** :
 
 ```text
-REGISTRY_URL      → registry.gitlab.com
+REGISTRY_URL      → registry.cri.epita.fr  (ou votre registry)
 REGISTRY_USERNAME → votre nom d'utilisateur GitLab
 REGISTRY_TOKEN    → votre PAT avec scope read_registry / write_registry
 ```

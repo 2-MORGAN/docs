@@ -8,10 +8,10 @@ description: "Vue d'ensemble des composants de la plateforme CNP."
 ```mermaid
 flowchart TD
     User(["👤 Utilisateur"])
-    User -->|HTTPS| Frontend
+    User -->|"HTTPS (JWT ou Microsoft SSO)"| Frontend
 
     subgraph Frontend["CNP Frontend — React + TypeScript + Vite"]
-        LP[LoginPage]
+        LP[LoginPage / Microsoft Login]
         DP[DashboardPage]
         CSM[ConfigureServiceModal]
     end
@@ -19,14 +19,15 @@ flowchart TD
     Frontend -->|"REST API · Bearer JWT"| Backend
 
     subgraph Backend["CNP Backend — Go / Chi"]
-        AH["AuthHandler\n/auth/login · /api/me"]
+        AH["AuthHandler\n/auth/login · /auth/microsoft · /api/me"]
         SH["ServiceHandler\n/api/pat · /api/services\n/api/gitlab/repositories"]
         SE["Scaffold Engine\nGo templates embed"]
-        PS["PATStore · in-memory"]
-        JW["JWT HS256"]
+        TS["TokenStore\nPostgreSQL + AES"]
+        MSFT["MicrosoftValidator\nJWKS RSA"]
     end
 
     Backend -->|"GitLab API v4"| GitLab
+    Backend -->|"Kubernetes API"| K8s
 
     subgraph GitLab["GitLab"]
         PROJ[Projects API]
@@ -36,23 +37,28 @@ flowchart TD
         BRANCH[Protected Branches API]
     end
 
-    subgraph Infra["Infrastructure — Azure AKS · Terraform"]
-        AKS["Cluster AKS · switzerlandnorth"]
+    subgraph K8s["Azure AKS"]
+        ArgoCD[ArgoCD]
+        Traefik[Traefik Ingress]
+        Apps[Services déployés]
+        ArgoCD -->|"GitOps sync"| Apps
+        Traefik --> Apps
     end
+
+    DB[(PostgreSQL\nTokens chiffrés)]
+    Backend --> DB
 ```
 
 ## Composants
 
 ### Frontend (`cnp-frontend`)
 
-Application React SPA construite avec Vite.
-
 | Fichier | Rôle |
 | --- | --- |
-| `pages/LoginPage.tsx` | Formulaire de connexion |
-| `pages/DashboardPage.tsx` | Liste des services \+ actions |
-| `components/ConfigureServiceModal.tsx` | Modale de création de service |
-| `components/ServiceCard.tsx` | Carte d'un service |
+| `pages/LoginPage.tsx` | Connexion admin \+ Microsoft SSO |
+| `pages/DashboardPage.tsx` | Liste des services \+ IP externe |
+| `components/ConfigureServiceModal.tsx` | Sélection repo \+ framework (auto ou manuel) |
+| `components/ServiceCard.tsx` | Carte service avec lien de déploiement |
 | `components/PATSetupBanner.tsx` | Bannière de configuration PAT |
 | `lib/api.ts` | Client HTTP vers le backend |
 | `context/AuthContext.tsx` | Context React pour la session |
@@ -63,51 +69,54 @@ Application React SPA construite avec Vite.
 | --- | --- |
 | `internal/handler` | Handlers HTTP (auth, services) |
 | `internal/middleware` | CORS, JWT validation |
-| `internal/scaffold` | Génération et push des fichiers CI/CD |
-| `internal/gitlab` | Client GitLab (variables, pipeline, protection) |
-| `internal/model` | Types partagés (Service, Framework) |
-| `internal/auth` | Génération/validation JWT (HS256) |
-| `internal/store` | Store in-memory des PATs GitLab |
+| `internal/auth` | JWT HS256 \+ Microsoft JWKS validator |
+| `internal/scaffold` | Génération et push des fichiers CI/CD \+ K8s |
+| `internal/gitlab` | Client GitLab (variables, pipeline, deploy tokens, fichiers) |
+| `internal/argocd` | Syncer ArgoCD (Application, secrets repo \+ registry) |
+| `internal/model` | Types partagés (Service, Framework, Deployment) |
+| `internal/store` | Interface `TokenStore` avec impl PostgreSQL et mémoire |
+| `internal/security` | Chiffrement AES des tokens (`TokenCipher`) |
+| `internal/database` | Connexion PostgreSQL |
 | `internal/config` | Chargement depuis l'environnement |
 
 ### Scaffold Engine
 
-Les templates Go (`text/template`) sont embarqués dans le binaire via `//go:embed` :
+Templates Go (`text/template`) embarqués via `//go:embed` :
 
 ```text
 scaffold/templates/
+├── common/k8s/
+│   ├── deployment.yaml.tmpl
+│   ├── service.yaml.tmpl
+│   └── ingress.yaml.tmpl
 ├── go/
 │   ├── .gitlab-ci.yml.tmpl
 │   ├── Dockerfile.tmpl
-│   ├── .gitignore.tmpl
 │   ├── go.mod.tmpl
 │   └── README.md.tmpl
 ├── nextjs/
 │   ├── .gitlab-ci.yml.tmpl
+│   └── Dockerfile.tmpl ...
+├── nestjs/
+│   ├── .gitlab-ci.yml.tmpl
 │   ├── Dockerfile.tmpl
-│   └── app/page.tsx.tmpl ...
-└── springboot/
+│   └── README.md.tmpl
+├── springboot/
+│   ├── .gitlab-ci.yml.tmpl
+│   └── Dockerfile.tmpl
+└── django/
     ├── .gitlab-ci.yml.tmpl
-    └── Dockerfile.tmpl
+    ├── Dockerfile.tmpl
+    └── README.md.tmpl
 ```
 
-Variables disponibles dans les templates :
+### Infrastructure (Terraform)
 
-| Variable | Description |
+| Ressource | Description |
 | --- | --- |
-| `{{.ServiceName}}` | Nom du projet GitLab |
-| `{{.ModulePath}}` | Chemin du module Go |
-| `{{.GoVersion}}` | Version Go (ex: `1.22`) |
-| `{{.NodeVersion}}` | Version Node.js (ex: `20`) |
-
-### Infrastructure
-
-| Paramètre | Valeur |
-| --- | --- |
-| Région | `switzerlandnorth` |
-| Resource Group | `2MorganCNP` |
-| VM | `Standard_B2s_v2` |
-| Réseau | kubenet, CIDR `10.0.0.0/16` |
+| AKS | Cluster Kubernetes `Standard_B2s_v2`, `switzerlandnorth` |
+| ArgoCD | Déployé via Helm sur le cluster AKS |
+| Traefik | Ingress controller, exposé via LoadBalancer Azure |
 
 ## Flux de configuration d'un service
 
@@ -117,18 +126,22 @@ sequenceDiagram
     participant F as Frontend
     participant B as Backend
     participant G as GitLab
+    participant A as ArgoCD / K8s
 
-    U->>F: Sélectionne repo + framework
+    U->>F: Sélectionne repo + framework (optionnel)
     F->>B: POST /api/services
     B->>G: GetProject(id)
     G-->>B: Infos projet
-    B->>B: RenderAll(framework)
-    Note over B: Génère fichiers depuis templates
+    opt Framework non fourni
+        B->>G: ListRootFiles + GetFileContent
+        G-->>B: Fichiers du repo
+        B->>B: detectFrameworkFromRepo()
+    end
+    B->>B: RenderAll(framework) — CI/CD + K8s
     B->>G: UpsertScaffold — commit fichiers
-    G-->>B: OK
-    B->>G: SetupBranchProtection
-    B->>G: SetTopics (cnp-2morgan, cloud-native, framework)
-    B->>G: InjectCIVariables (REGISTRY_*)
-    B-->>F: 201 Created Service
-    F-->>U: Service affiché dans le dashboard
+    B->>G: SetupBranchProtection + SetTopics + InjectCIVariables
+    B->>G: CreateDeployTokens (repo + registry)
+    B->>A: SyncProject — secret repo, secret registry, Application ArgoCD
+    B-->>F: 201 Created Service + Deployment info
+    F-->>U: Service avec URL externe affiché
 ```

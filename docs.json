@@ -23,7 +23,8 @@
         "pages": [
           "concepts/services",
           "concepts/frameworks",
-          "concepts/cicd"
+          "concepts/cicd",
+          "concepts/argocd"
         ]
       },
       {

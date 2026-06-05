@@ -9,11 +9,18 @@ Tous les endpoints ci-dessous sont **protégés** — ils requièrent `Authoriza
 
 ## POST /api/pat
 
-Enregistre le PAT GitLab de l'utilisateur connecté.
+Enregistre le PAT GitLab. Le token est chiffré et persisté en PostgreSQL.
 
 ```json
-{ "token": "glpat-xxxxxxxxxxxxxxxxxxxx" }
+{
+  "token": "glpat-xxxxxxxxxxxxxxxxxxxx",
+  "expires_at": "2026-01-15"
+}
 ```
+
+<Note>
+  Le champ `expires_at` est **obligatoire** depuis la version avec PostgreSQL. Format : `YYYY-MM-DD`.
+</Note>
 
 ### Réponse `200 OK`
 
@@ -23,7 +30,7 @@ Enregistre le PAT GitLab de l'utilisateur connecté.
 
 | Status | Cause |
 | --- | --- |
-| `400` | Token vide ou JSON malformé |
+| `400` | Token vide, `expires_at` manquant ou format invalide |
 | `422` | Token refusé par GitLab |
 | `502` | GitLab inaccessible |
 
@@ -31,7 +38,7 @@ Enregistre le PAT GitLab de l'utilisateur connecté.
 
 ## POST /api/services
 
-Scaffold un service sur le dépôt GitLab cible.
+Scaffold un service, crée les deploy tokens et synchronise ArgoCD.
 
 ```json
 {
@@ -40,45 +47,68 @@ Scaffold un service sur le dépôt GitLab cible.
 }
 ```
 
-| Champ | Type | Valeurs |
+<Note>
+  Le champ `framework` est **optionnel**. Si absent, CNP détecte automatiquement le framework depuis les fichiers du dépôt.
+</Note>
+
+| Champ | Type | Description |
 | --- | --- | --- |
-| `repository_id` | `integer` | ID numérique du projet GitLab |
-| `framework` | `string` | `go` \| `nextjs` \| `springboot` |
+| `repository_id` | `integer` | ID GitLab du projet (obligatoire) |
+| `framework` | `string` | `go` \| `nextjs` \| `nestjs` \| `springboot` \| `django` (optionnel) |
 
 ### Réponse `201 Created`
 
 ```json
 {
   "name": "my-service",
-  "description": "Mon service Go",
+  "description": "Mon service",
   "framework": "go",
-  "repo_url": "https://gitlab.com/group/my-service",
-  "clone_url": "https://gitlab.com/group/my-service.git",
+  "repo_url": "https://gitlab.cri.epita.fr/group/my-service",
+  "clone_url": "https://gitlab.cri.epita.fr/group/my-service.git",
   "gitlab_id": 12345678,
-  "created_at": "2024-01-15T10:30:00Z"
+  "created_at": "2024-01-15T10:30:00Z",
+  "deployment": {
+    "external_ip": "20.10.5.42",
+    "url": "http://20.10.5.42/"
+  }
 }
 ```
 
 | Status | Cause |
 | --- | --- |
-| `400` | `repository_id` absent, framework invalide |
+| `400` | `repository_id` absent, framework non reconnu |
 | `403` | PAT non configuré |
 | `409` | Conflit Git lors du push |
+| `500` | ArgoCD sync échoué |
 | `502` | GitLab inaccessible |
 
 ---
 
 ## GET /api/services
 
-Liste tous les services CNP (projets avec topic `cnp-2morgan`).
+Liste tous les services CNP (projets avec topic `cnp-2morgan`). Chaque service inclut les infos de déploiement si disponibles.
 
-Retourne un tableau `[]Service`. Vide si aucun service configuré.
+### Réponse `200 OK`
+
+```json
+[
+  {
+    "name": "my-go-service",
+    "framework": "go",
+    "gitlab_id": 12345678,
+    "deployment": {
+      "external_ip": "20.10.5.42",
+      "url": "http://20.10.5.42/"
+    }
+  }
+]
+```
 
 ---
 
 ## POST /api/services/{id}/redeploy
 
-Re-scaffolde un service et déclenche un nouveau pipeline.
+Re-scaffolde, re-synchronise ArgoCD et déclenche un pipeline.
 
 | Paramètre | Type | Description |
 | --- | --- | --- |
@@ -86,9 +116,16 @@ Re-scaffolde un service et déclenche un nouveau pipeline.
 
 ### Réponse `200 OK`
 
-Retourne l'objet `Service` mis à jour.
+Retourne l'objet `Service` mis à jour avec les infos de déploiement.
 
 ```bash
 curl -X POST https://api.cnp.example.com/api/services/12345678/redeploy \
   -H "Authorization: Bearer $JWT"
 ```
+
+| Status | Cause |
+| --- | --- |
+| `400` | `id` invalide ou framework non reconnu |
+| `403` | PAT non configuré |
+| `500` | ArgoCD sync échoué |
+| `502` | GitLab inaccessible |

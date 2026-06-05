@@ -1,64 +1,84 @@
-## Qu'est-ce que CNP ?
+---
+title: "index"
+---
 
-**CNP (Cloud Native Platform)** est une plateforme développée par l'équipe **2Morgan** pour simplifier le cycle de vie des services cloud-native. En quelques clics, vous connectez un dépôt GitLab existant, choisissez votre framework, et CNP génère automatiquement :
+# Cloud Native Platform
 
-- Un pipeline GitLab CI/CD complet (build → test → Docker)
-- Un `Dockerfile` optimisé pour votre stack
-- La protection de la branche principale
-- Les variables CI nécessaires au registry Docker
+CNP est la plateforme développée par l'équipe **2Morgan** pour automatiser l'intégralité du cycle de vie d'un service cloud-native — de la création du dépôt GitLab jusqu'au déploiement continu sur Kubernetes (AKS) via ArgoCD.
+
+## Ce que fait CNP
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" icon="bolt" href="/quickstart">
-    Configurez votre premier service en 5 minutes
+  <Card title="Scaffolding automatique" icon="wand-magic-sparkles">
+    Génère la structure complète d'un projet (Dockerfile, CI/CD, manifests K8s) pour **5 frameworks** : Go, Next.js, NestJS, Spring Boot, Django.
   </Card>
 
-  <Card title="Architecture" icon="sitemap" href="/architecture">
-    Comprendre les composants de la plateforme
+  <Card title="CI/CD GitLab intégré" icon="gitlab">
+    Pousse directement un `.gitlab-ci.yml` optimisé dans votre dépôt — build, test et publication d'image Docker inclus.
   </Card>
 
-  <Card title="Frameworks" icon="layer-group" href="/concepts/frameworks">
-    Go, Next.js, Spring Boot — tous supportés
+  <Card title="Déploiement ArgoCD" icon="rocket">
+    À la fin du scaffold, CNP crée automatiquement une **Application ArgoCD** sur votre cluster AKS et déclenche le premier déploiement.
   </Card>
 
-  <Card title="API Reference" icon="code" href="/api-reference/authentication">
-    Référence complète de l'API REST
+  <Card title="Authentification SSO" icon="shield-check">
+    Connexion par identifiants admin **ou** via **Microsoft Entra ID** (Azure AD) avec validation JWKS RSA — pour les équipes EPITA.
   </Card>
 </CardGroup>
 
-## Fonctionnalités principales
+## Architecture en bref
 
-<AccordionGroup>
-  <Accordion title="Scaffolding automatique">
-    CNP pousse directement sur votre dépôt GitLab les fichiers de configuration nécessaires (`.gitlab-ci.yml`, `Dockerfile`, `go.mod`, etc.) générés à partir de templates paramétrés selon votre framework et votre projet.
-  </Accordion>
+```mermaid
+graph LR
+    U([Utilisateur]) -->|JWT / Microsoft SSO| API[CNP Backend]
+    API -->|scaffold + push| GL[GitLab]
+    API -->|crée Application| ACD[ArgoCD]
+    GL -->|webhook CI/CD| CI[GitLab CI]
+    CI -->|image Docker| REG[Registry GitLab]
+    ACD -->|pull & deploy| K8S[AKS Kubernetes]
+    API -->|PAT chiffré| PG[(PostgreSQL)]
+```
 
-  <Accordion title="Support multi-framework">
-    Trois frameworks sont supportés nativement :
+## Démarrage rapide
 
-    - **Go** — pipeline en 3 stages (build / test / docker), image `golang:alpine`
-    - **Next.js** — pipeline en 2 stages (build / docker), cache npm, image `node:alpine`
-    - **Spring Boot** — pipeline en 3 stages (test / build / docker), cache Maven, image `maven:3.9-eclipse-temurin-21`
-  </Accordion>
+<Steps>
+  <Step title="Enregistrer votre PAT GitLab">
+    Créez un Personal Access Token GitLab avec les scopes `api` \+ `write_repository` et enregistrez-le via `POST /api/pat`.
+  </Step>
+  <Step title="Configurer un service">
+    Appelez `POST /api/services` avec le path GitLab, le namespace K8s et le nom du service. CNP détecte automatiquement le framework et génère tous les fichiers.
+  </Step>
+  <Step title="Déploiement automatique">
+    ArgoCD prend le relais : il synchronise les manifests K8s depuis GitLab et déploie votre service sur AKS. L'IP de l'Ingress est retournée dans la réponse.
+  </Step>
+</Steps>
 
-  <Accordion title="Intégration GitLab native">
-    CNP utilise votre Personal Access Token (PAT) GitLab pour interagir avec vos projets : lecture des dépôts, commit des fichiers de scaffold, protection de branche, injection de variables CI et déclenchement de pipeline.
-  </Accordion>
+## Frameworks supportés
 
-  <Accordion title="Redéploiement en un clic">
-    Depuis le dashboard, vous pouvez forcer un nouveau pipeline sur n'importe quel service déjà configuré via le bouton **Redéployer**.
-  </Accordion>
+| Framework | Détection automatique | CI/CD | K8s manifests |
+| --- | --- | --- | --- |
+| **Go** | `go.mod` | ✅ | ✅ |
+| **Next.js** | `package.json` \+ next | ✅ | ✅ |
+| **NestJS** | `package.json` \+ @nestjs | ✅ | ✅ |
+| **Spring Boot** | `pom.xml` | ✅ | ✅ |
+| **Django** | `manage.py` | ✅ | ✅ |
 
-  <Accordion title="Infrastructure Kubernetes sur Azure">
-    La plateforme elle-même tourne sur un cluster **AKS** (Azure Kubernetes Service) provisionné via Terraform dans la région `switzerlandnorth`.
-  </Accordion>
-</AccordionGroup>
+## Navigation
 
-## Stack technique
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="play" href="/quickstart">
+    Lancez votre premier service en moins de 5 minutes.
+  </Card>
 
-| Composant | Technologie |
-| --- | --- |
-| Backend | Go 1.22, Chi router, JWT |
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
-| Infrastructure | Azure AKS, Terraform |
-| CI/CD générée | GitLab CI, Kaniko |
-| Registry | GitLab Container Registry |
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Vue d'ensemble des composants et flux de données.
+  </Card>
+
+  <Card title="Guides" icon="book-open" href="/guides/pat-setup">
+    Tutoriels pas à pas pour chaque fonctionnalité.
+  </Card>
+
+  <Card title="API Reference" icon="code" href="/api-reference/authentication">
+    Documentation complète de tous les endpoints REST.
+  </Card>
+</CardGroup>
