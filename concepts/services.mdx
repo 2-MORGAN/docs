@@ -5,19 +5,23 @@ description: "Comprendre ce qu'est un service dans CNP et comment il est modéli
 
 ## Définition
 
-Un **service** dans CNP correspond à un projet GitLab qui a été configuré via la plateforme. Il est identifié par le topic GitLab `cnp-2morgan` et se caractérise par un framework de déploiement.
+Un **service** dans CNP correspond à un projet GitLab scaffoldé, déployé automatiquement sur Kubernetes via ArgoCD. Il est identifié par le topic GitLab `cnp-2morgan`.
 
 ## Modèle de données
 
 ```typescript
 interface Service {
-  name: string        // Nom du projet GitLab
-  description: string // Description du projet
-  framework: Framework // 'go' | 'nextjs' | 'springboot'
-  repo_url: string    // URL web du projet
-  clone_url: string   // URL de clone HTTP
-  gitlab_id: number   // ID numérique GitLab
-  created_at: string  // Date de création ISO 8601
+  name: string          // Nom du projet GitLab
+  description: string   // Description du projet
+  framework: Framework  // 'go' | 'nextjs' | 'nestjs' | 'springboot' | 'django'
+  repo_url: string      // URL web du projet
+  clone_url: string     // URL de clone HTTP
+  gitlab_id: number     // ID numérique GitLab
+  created_at: string    // Date de création ISO 8601
+  deployment?: {        // Infos de déploiement (si disponible)
+    external_ip: string // IP externe du LoadBalancer
+    url: string         // URL d'accès http://<ip>/<path>
+  }
 }
 ```
 
@@ -25,38 +29,62 @@ interface Service {
 
 ```mermaid
 flowchart TD
-    A([Dépôt GitLab]) -->|"POST /api/services"| B["Scaffold\nfichiers CI/CD + Docker"]
-    B -->|"topics: cnp-2morgan · cloud-native · framework"| C([Service actif])
-    C -->|"POST /api/services/id/redeploy"| D["Re-scaffold\n+ TriggerPipeline"]
-    D --> C
+    A([Dépôt GitLab]) -->|"POST /api/services"| B["Scaffold\nCI/CD + Docker + K8s manifests"]
+    B --> C["ArgoCD sync\nApplication créée sur K8s"]
+    C -->|"topics: cnp-2morgan · framework"| D([Service actif\nIP externe disponible])
+    D -->|"POST /api/services/id/redeploy"| E["Re-scaffold\n+ Re-sync ArgoCD\n+ TriggerPipeline"]
+    E --> D
 ```
 
-## Détection des services existants
+## Détection du framework
 
-CNP liste les services en interrogeant l'API GitLab avec les filtres :
+CNP détecte automatiquement le framework si non fourni, en analysant les fichiers du dépôt :
 
-- `topic = cnp-2morgan`
-- `membership = true` (seuls les projets dont l'utilisateur est membre)
+| Fichier / Indicateur | Framework détecté |
+| --- | --- |
+| `go.mod` ou `go.work` | Go |
+| `next.config.js/ts/mjs` | Next.js |
+| `nest-cli.json` | NestJS |
+| `manage.py` | Django |
+| `package.json` → `"next"` | Next.js |
+| `package.json` → `"@nestjs/core"` | NestJS |
+| `pom.xml` → `spring-boot-starter` | Spring Boot |
+| `build.gradle` → `org.springframework.boot` | Spring Boot |
+| `requirements.txt` → `django` | Django |
+| `pyproject.toml` → `django` | Django |
 
 ## Topics GitLab
 
 | Topic | Rôle |
 | --- | --- |
-| `cnp-2morgan` | Marqueur principal — identifie les services CNP |
+| `cnp-2morgan` | Marqueur principal |
 | `cloud-native` | Classification générale |
-| `go` / `nextjs` / `springboot` | Framework utilisé |
+| `go` / `nextjs` / `nestjs` / `springboot` / `django` | Framework utilisé |
 
 <Warning>
   Ne retirez pas le topic `cnp-2morgan` de votre projet GitLab, sinon il disparaîtra du dashboard CNP.
 </Warning>
 
-## Store de PATs
+## Stockage des tokens (PostgreSQL)
 
-Les Personal Access Tokens GitLab sont stockés **en mémoire** (in-process). Un redémarrage du backend efface tous les PATs — les utilisateurs doivent les reconfigurer.
+Les tokens sont stockés dans PostgreSQL, **chiffrés avec AES** via `TokenCipher`.
 
 ```go
-type PATStore struct {
-  mu    sync.RWMutex
-  store map[string]string // username → PAT
+type TokenRecord struct {
+  UserID        string
+  GitLabHost    string
+  TokenType     string     // "pat" | "deploy_repository" | "deploy_registry"
+  ProjectID     int64      // 0 pour les PAT globaux
+  TokenUsername string
+  Token         string     // chiffré en base
+  ExpiresAt     *time.Time
 }
 ```
+
+Trois types de tokens sont gérés par service :
+
+| Type | Usage |
+| --- | --- |
+| `pat` | Token personnel GitLab de l'utilisateur |
+| `deploy_repository` | Deploy token pour ArgoCD (pull du repo) |
+| `deploy_registry` | Deploy token pour Kubernetes (pull de l'image) |

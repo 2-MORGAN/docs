@@ -5,9 +5,9 @@ description: "Comment créer et enregistrer un Personal Access Token GitLab pour
 
 ## Pourquoi un PAT ?
 
-CNP utilise votre Personal Access Token (PAT) GitLab pour agir en votre nom : lire vos projets, pousser des fichiers de configuration, protéger des branches et déclencher des pipelines.
+CNP utilise votre Personal Access Token (PAT) GitLab pour agir en votre nom : lire vos projets, pousser des fichiers de configuration, créer des deploy tokens, protéger des branches et déclencher des pipelines.
 
-Le token est stocké **en mémoire** dans le backend CNP et n'est jamais persisté sur disque.
+Le token est stocké **chiffré (AES)** dans la base PostgreSQL de CNP — il persiste au redémarrage du backend.
 
 ---
 
@@ -25,6 +25,10 @@ Le token est stocké **en mémoire** dans le backend CNP et n'est jamais persist
     | Token name | `cnp-platform` |
     | Expiration date | Dans 1 an maximum |
     | Scopes | `api`, `write_repository` |
+
+    <Warning>
+      La **date d'expiration est obligatoire** lors de l'enregistrement dans CNP. Notez-la.
+    </Warning>
   </Step>
   <Step title="Copier le token">
     Copiez le token généré — il ne sera affiché qu'une seule fois.
@@ -35,7 +39,7 @@ Le token est stocké **en mémoire** dans le backend CNP et n'est jamais persist
 
 | Scope | Raison |
 | --- | --- |
-| `api` | Lecture/écriture de projets, variables CI, branches protégées, pipelines |
+| `api` | Lecture/écriture de projets, variables CI, branches protégées, deploy tokens, pipelines |
 | `write_repository` | Commit de fichiers de scaffold sur le dépôt |
 
 ---
@@ -45,21 +49,20 @@ Le token est stocké **en mémoire** dans le backend CNP et n'est jamais persist
 1. Connectez-vous à la plateforme CNP
 2. Si le PAT n'est pas configuré, une bannière jaune s'affiche
 3. Cliquez sur **Configurer le token GitLab**
-4. Collez votre PAT et cliquez sur **Enregistrer**
+4. Remplissez le token **et la date d'expiration** (format `YYYY-MM-DD`)
+5. Cliquez sur **Enregistrer**
 
 ### Erreurs possibles
 
 | Erreur | Cause | Solution |
 | --- | --- | --- |
 | `Token GitLab invalide` | Token expiré ou incorrect | Générez un nouveau PAT |
+| `la date d'expiration du token est requise` | Champ `expires_at` manquant | Renseignez la date d'expiration |
+| `format de date d'expiration invalide` | Format incorrect | Utilisez `YYYY-MM-DD` |
 | `impossible de joindre GitLab` | Backend ne peut pas contacter GitLab | Vérifiez `GITLAB_BASE_URL` |
 
 ---
 
-## Durée de vie
+## Persistance
 
-Le PAT est perdu si le backend CNP redémarre. Reconfigurer le token prend moins d'une minute.
-
-<Tip>
-  Si vous travaillez sur une session longue, gardez votre PAT à portée pour le reconfigurer rapidement après un éventuel redémarrage.
-</Tip>
+Contrairement aux versions précédentes (store in-memory), le PAT est désormais **persisté dans PostgreSQL** avec le token chiffré. Il survit aux redémarrages du backend.

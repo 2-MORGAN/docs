@@ -3,27 +3,40 @@ title: "Configuration"
 description: "Variables d'environnement requises pour déployer le backend CNP."
 ---
 
-## Variables d'environnement — Backend
+## Variables d'environnement
 
-Toutes les variables sont **obligatoires** — le backend panique au démarrage si l'une d'elles est manquante.
+### Obligatoires
+
+Le backend panique au démarrage si ces variables sont manquantes.
 
 | Variable | Description | Exemple |
 | --- | --- | --- |
 | `PORT` | Port d'écoute du serveur HTTP | `8080` |
-| `ADMIN_USERNAME` | Identifiant admin local | `admin` |
-| `ADMIN_PASSWORD` | Mot de passe admin local | `changeme` |
+| `ADMIN_USERNAME` | Identifiant admin | `admin` |
+| `ADMIN_PASSWORD` | Mot de passe admin | `changeme` |
 | `JWT_SECRET` | Secret HMAC-SHA256 pour les tokens JWT | `your-256-bit-secret` |
 | `FRONTEND_URL` | URL du frontend (pour CORS) | `https://cnp.example.com` |
-| `GITLAB_BASE_URL` | URL de base de l'instance GitLab | `https://gitlab.com` |
-| `MICROSOFT_CLIENT_ID` | Client ID de l'app Azure AD | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
-| `MICROSOFT_TENANT_ID` | Tenant ID Azure AD (EPITA) | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
-| `MICROSOFT_ALLOWED_DOMAIN` | Domaine email autorisé pour le SSO | `epita.fr` |
+| `GITLAB_BASE_URL` | URL de base de l'instance GitLab | `https://gitlab.cri.epita.fr` |
+| `DATABASE_URL` | URL de connexion PostgreSQL | `postgres://user:pass@host:5432/db` |
+| `TOKEN_ENCRYPTION_KEY` | Clé AES pour le chiffrement des tokens (32 octets en hex) | `<64 chars hex>` |
+| `MICROSOFT_CLIENT_ID` | App ID Azure pour l'auth SSO | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `MICROSOFT_TENANT_ID` | Tenant Azure | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+| `MICROSOFT_ALLOWED_DOMAIN` | Domaine email autorisé | `epita.fr` |
+
+### Optionnelles (avec défauts)
+
+| Variable | Défaut | Description |
+| --- | --- | --- |
+| `ARGOCD_NAMESPACE` | `argocd` | Namespace ArgoCD dans le cluster |
+| `ARGOCD_PROJECT` | `default` | Projet ArgoCD |
+| `ARGOCD_DEST_NAMESPACE` | `student-apps` | Namespace cible pour les déploiements |
+| `ARGOCD_REPO_SECRET_PREFIX` | `repo-` | Préfixe des secrets de repository ArgoCD |
+| `ARGOCD_APP_PREFIX` | `app-` | Préfixe des Applications ArgoCD |
+| `KUBECONFIG` | _(défaut kubectl)_ | Chemin vers le kubeconfig |
 
 ---
 
 ## Fichier `.env`
-
-Le backend charge automatiquement un fichier `.env` s'il est présent :
 
 ```bash
 PORT=8080
@@ -31,9 +44,9 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=supersecret
 JWT_SECRET=my-very-long-secret-at-least-32-chars
 FRONTEND_URL=http://localhost:5173
-GITLAB_BASE_URL=https://gitlab.com
-
-# Microsoft SSO (Azure AD)
+GITLAB_BASE_URL=https://gitlab.cri.epita.fr
+DATABASE_URL=postgres://cnp:password@localhost:5432/cnpdb
+TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 MICROSOFT_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 MICROSOFT_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 MICROSOFT_ALLOWED_DOMAIN=epita.fr
@@ -45,7 +58,7 @@ MICROSOFT_ALLOWED_DOMAIN=epita.fr
 
 ---
 
-## Variables d'environnement — Frontend
+## Configuration du frontend
 
 | Variable | Description | Exemple |
 | --- | --- | --- |
@@ -58,44 +71,29 @@ VITE_API_URL=http://localhost:8080
 
 ---
 
-## Lancer la plateforme avec Docker Compose
-
-Le fichier `docker-compose.yml` à la racine du projet démarre le backend et le frontend en un seul appel :
+## Générer les clés
 
 ```bash
-docker compose up --build
+# JWT Secret (32+ chars)
+openssl rand -base64 32
+
+# Token Encryption Key (32 bytes = 64 chars hex)
+openssl rand -hex 32
 ```
 
-| Service | Port exposé | Description |
-| --- | --- | --- |
-| `backend` | `8080` | API Go, charge `cnp-backend/.env` |
-| `frontend` | `5173` | Frontend React servi par Nginx |
+---
 
-Le frontend est compilé en mode production (`npm run build`) puis servi par **Nginx** avec le routage SPA (`try_files $uri /index.html`). L'URL du backend est injectée à la compilation via `VITE_API_URL`.
+## Base de données
 
-```yaml
-services:
-  backend:
-    build: ./cnp-backend
-    ports:
-      - "8080:8080"
-    env_file:
-      - ./cnp-backend/.env
+CNP utilise PostgreSQL pour stocker les tokens chiffrés. Le schéma est créé automatiquement au démarrage.
 
-  frontend:
-    build:
-      context: ./cnp-frontend
-      args:
-        VITE_API_URL: http://localhost:8080
-    ports:
-      - "5173:80"
-    depends_on:
-      - backend
+```bash
+# Démarrer PostgreSQL avec Docker
+docker-compose up -d db
+
+# Ou utiliser le docker-compose complet
+docker-compose up -d
 ```
-
-<Warning>
-  En production, remplacez `http://localhost:8080` par l'URL publique du backend et configurez TLS devant Nginx.
-</Warning>
 
 ---
 
@@ -103,31 +101,19 @@ services:
 
 <AccordionGroup>
   <Accordion title="JWT Secret">
-    Utilisez un secret d'au moins 32 caractères. Générez-en un avec :
-
-    ```bash
-    openssl rand -base64 32
-    ```
-
-    Les tokens JWT signés avec HS256 expirent après 24 heures.
+    Minimum 32 caractères. Les tokens expirent après **24h**.
   </Accordion>
 
-  <Accordion title="Microsoft SSO — Azure AD">
-    Les ID Tokens Microsoft sont validés via les clés JWKS publiques de Microsoft (mis en cache 1h). Le backend vérifie :
-
-    - La signature RSA du token
-    - L'audience (`MICROSOFT_CLIENT_ID`)
-    - L'issuer (`login.microsoftonline.com/<TENANT_ID>/v2.0`)
-    - Le tenant ID du token
-    - Le domaine email (`@MICROSOFT_ALLOWED_DOMAIN`)
+  <Accordion title="Token Encryption Key">
+    Clé AES 256 bits (32 octets, encodée en 64 caractères hexadécimaux). Stockez-la dans un secret manager en production.
   </Accordion>
 
-  <Accordion title="Mot de passe admin">
-    Comparé avec `subtle.ConstantTimeCompare` pour éviter les attaques par timing.
+  <Accordion title="Microsoft SSO">
+    La validation du token Microsoft utilise les clés JWKS RSA de `login.microsoftonline.com`. Les clés sont mises en cache 1h côté backend.
   </Accordion>
 
   <Accordion title="CORS">
-    Le backend n'autorise que l'origine définie dans `FRONTEND_URL`.
+    Seule l'origine `FRONTEND_URL` est autorisée.
   </Accordion>
 </AccordionGroup>
 
@@ -137,7 +123,7 @@ services:
 
 | Timeout | Valeur |
 | --- | --- |
-| Read timeout | 10 secondes |
-| Write timeout | 10 secondes |
-| Idle timeout | 60 secondes |
-| Request timeout | 30 secondes (Chi middleware) |
+| Read | 10s |
+| Write | 10s |
+| Idle | 60s |
+| Request (Chi) | 30s |

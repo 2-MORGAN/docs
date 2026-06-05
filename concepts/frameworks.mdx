@@ -5,133 +5,126 @@ description: "Go, Next.js et Spring Boot — détail des templates générés pa
 
 ## Vue d'ensemble
 
-CNP génère automatiquement les fichiers de configuration selon le framework choisi. Les templates sont embarqués dans le binaire Go via `//go:embed` et rendus avec `text/template`.
+CNP supporte **5 frameworks**. En plus des fichiers CI/CD et Docker, des **manifests Kubernetes communs** (`k8s/`) sont générés pour tous les frameworks.
+
+---
+
+## Manifests Kubernetes (communs)
+
+Générés dans le dossier `k8s/` de votre dépôt pour tous les frameworks :
+
+| Fichier | Description |
+| --- | --- |
+| `k8s/deployment.yaml` | Déploiement Kubernetes (image, imagePullSecret) |
+| `k8s/service.yaml` | Service ClusterIP |
+| `k8s/ingress.yaml` | Ingress Traefik avec règles de routage |
+
+Ces fichiers sont surveillés par ArgoCD pour le déploiement automatique.
 
 ---
 
 ## Go
 
-**Identifiant** : `go`
-
-### Fichiers générés
+**Identifiant** : `go` · **Détection** : `go.mod`, `go.work`
 
 | Fichier | Description |
 | --- | --- |
-| `.gitlab-ci.yml` | Pipeline CI/CD |
-| `Dockerfile` | Image de production |
+| `.gitlab-ci.yml` | Pipeline 3 stages : build / test / docker |
+| `Dockerfile` | Image de production alpine |
 | `go.mod` | Module Go avec chemin automatique |
 | `.gitignore` | Ignorer les binaires |
 | `README.md` | README pré-rempli |
 
-### Pipeline CI
-
 ```yaml
-stages:
-  - build
-  - test
-  - docker
-
-build:
-  image: golang:1.22-alpine
-  script:
-    - go build ./...
-
-test:
-  image: golang:1.22-alpine
-  script:
-    - go test ./...
-
-docker-build:
-  image: kaniko
-  only:
-    - main
+stages: [build, test, docker]
+# build + test : golang:1.22-alpine
+# docker : kaniko → CI_REGISTRY_IMAGE:latest
 ```
 
 ---
 
 ## Next.js
 
-**Identifiant** : `nextjs`
-
-### Fichiers générés
+**Identifiant** : `nextjs` · **Détection** : `next.config.*`, `"next"` dans `package.json`
 
 | Fichier | Description |
 | --- | --- |
-| `.gitlab-ci.yml` | Pipeline CI/CD avec cache npm |
-| `Dockerfile` | Image multi-stage |
-| `package.json` | Configuration npm |
-| `next.config.js` | Configuration Next.js |
-| `tsconfig.json` | Configuration TypeScript |
-| `app/page.tsx` | Page d'accueil |
-| `app/layout.tsx` | Layout racine |
-
-### Pipeline CI
+| `.gitlab-ci.yml` | Pipeline 2 stages : build / docker |
+| `Dockerfile` | Image multi-stage node:alpine |
+| `package.json`, `tsconfig.json`, `next.config.js` | Config projet |
+| `app/page.tsx`, `app/layout.tsx` | Pages de base |
 
 ```yaml
-stages:
-  - build
-  - docker
-
-build:
-  image: node:20-alpine
-  cache:
-    key:
-      files:
-        - package-lock.json
-    paths:
-      - node_modules/
-  script:
-    - npm ci
-    - npm run build
-  artifacts:
-    paths:
-      - .next/
+stages: [build, docker]
+# build : node:20-alpine, cache npm, artifacts .next/
+# docker : kaniko
 ```
 
 <Note>
-  Le pipeline utilise `npm ci` sur `main` et les Merge Requests, et `npm install` sur les autres branches.
+  Utilise `npm ci` sur `main` et les MR, `npm install` sur les autres branches.
 </Note>
+
+---
+
+## NestJS
+
+**Identifiant** : `nestjs` · **Détection** : `nest-cli.json`, `"@nestjs/core"` dans `package.json`
+
+| Fichier | Description |
+| --- | --- |
+| `.gitlab-ci.yml` | Pipeline 2 stages : build / docker |
+| `Dockerfile` | Image node:alpine |
+| `.gitignore` | Ignorer `dist/`, `node_modules/` |
+| `README.md` | README pré-rempli |
+
+```yaml
+stages: [build, docker]
+# build : node:20-alpine, cache npm, artifacts dist/
+# docker : kaniko
+```
 
 ---
 
 ## Spring Boot
 
-**Identifiant** : `springboot`
-
-### Fichiers générés
+**Identifiant** : `springboot` · **Détection** : `pom.xml` (spring-boot-starter), `build.gradle`
 
 | Fichier | Description |
 | --- | --- |
-| `.gitlab-ci.yml` | Pipeline CI/CD avec cache Maven |
-| `Dockerfile` | Image de production |
-
-### Pipeline CI
+| `.gitlab-ci.yml` | Pipeline 3 stages : test / build / docker |
+| `Dockerfile` | Image JRE |
 
 ```yaml
-stages:
-  - test
-  - build
-  - docker
-
-test:
-  image: maven:3.9-eclipse-temurin-21
-  script:
-    - mvn test -B
-
-build:
-  image: maven:3.9-eclipse-temurin-21
-  script:
-    - mvn package -DskipTests -B
-  artifacts:
-    paths:
-      - target/*.jar
+stages: [test, build, docker]
+# test + build : maven:3.9-eclipse-temurin-21, cache .m2/
+# artifacts : target/*.jar
+# docker : kaniko
 ```
 
 ---
 
-## Variables CI injectées
+## Django
 
-Pour tous les frameworks, CNP injecte ces variables CI/CD GitLab (protégées et masquées) :
+**Identifiant** : `django` · **Détection** : `manage.py`, `requirements.txt`/`pyproject.toml` contenant `django`
+
+| Fichier | Description |
+| --- | --- |
+| `.gitlab-ci.yml` | Pipeline 2 stages : build / docker |
+| `Dockerfile` | Image python:3.12-slim |
+| `.gitignore` | Ignorer `__pycache__`, `.env` |
+| `README.md` | README pré-rempli |
+
+```yaml
+stages: [build, docker]
+# build : python:3.12-slim
+#   pip install -r requirements.txt
+#   python manage.py check
+# docker : kaniko
+```
+
+---
+
+## Variables CI injectées (tous frameworks)
 
 | Variable | Description |
 | --- | --- |
@@ -140,12 +133,12 @@ Pour tous les frameworks, CNP injecte ces variables CI/CD GitLab (protégées et
 | `REGISTRY_USERNAME` | Nom d'utilisateur du registry |
 
 <Warning>
-  Les valeurs initiales sont des placeholders (`PLACEHOLDER_*`). Remplacez-les manuellement dans GitLab CI/CD → Variables.
+  Les valeurs initiales sont des placeholders. Remplacez-les dans GitLab CI/CD → Variables.
 </Warning>
 
 ## Build Docker avec Kaniko
 
-Tous les frameworks utilisent [Kaniko](https://github.com/GoogleContainerTools/kaniko) pour builder sans démon Docker. L'image est poussée avec deux tags :
+Tous les frameworks utilisent [Kaniko](https://github.com/GoogleContainerTools/kaniko). L'image est poussée avec deux tags :
 
-- `CI_REGISTRY_IMAGE:CI_COMMIT_SHORT_SHA` — tag immutable
-- `CI_REGISTRY_IMAGE:latest` — tag toujours à jour
+- `CI_REGISTRY_IMAGE:CI_COMMIT_SHORT_SHA` — tag immutable par commit
+- `CI_REGISTRY_IMAGE:latest` — tag suivi par ArgoCD
