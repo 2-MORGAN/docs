@@ -43,7 +43,7 @@ graph LR
 
 <Steps>
   <Step title="Enregistrer votre PAT GitLab">
-    Créez un Personal Access Token GitLab avec les scopes `api` \+ `write_repository` et enregistrez-le via `POST /api/pat`.
+    Créez un Personal Access Token GitLab avec les scopes `api` \+ `read_user` et enregistrez-le via `POST /api/pat`.
   </Step>
   <Step title="Configurer un service">
     Appelez `POST /api/services` avec le path GitLab, le namespace K8s et le nom du service. CNP détecte automatiquement le framework et génère tous les fichiers.

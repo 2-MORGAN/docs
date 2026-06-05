@@ -24,7 +24,7 @@ Le token est stocké **chiffré (AES)** dans la base PostgreSQL de CNP — il pe
     | --- | --- |
     | Token name | `cnp-platform` |
     | Expiration date | Dans 1 an maximum |
-    | Scopes | `api`, `write_repository` |
+    | Scopes | `api`, `read_user` |
 
     <Warning>
       La **date d'expiration est obligatoire** lors de l'enregistrement dans CNP. Notez-la.
@@ -40,7 +40,7 @@ Le token est stocké **chiffré (AES)** dans la base PostgreSQL de CNP — il pe
 | Scope | Raison |
 | --- | --- |
 | `api` | Lecture/écriture de projets, variables CI, branches protégées, deploy tokens, pipelines |
-| `write_repository` | Commit de fichiers de scaffold sur le dépôt |
+| `read_user` | Lecture du profil utilisateur GitLab (email, username) |
 
 ---
 
