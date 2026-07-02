@@ -1,59 +1,51 @@
 ---
-title: "Redéployer un service"
-description: "Comment forcer un nouveau cycle de build et déploiement sur un service existant."
+title: "Mettre à jour votre service"
+description: "Comment redéployer votre service pour forcer un nouveau build."
 ---
 
-## Quand redéployer ?
+# Mettre à jour votre service
 
-Le redéploiement est utile pour :
+## Quand utiliser le redéploiement ?
 
-- Forcer un nouveau pipeline sans pousser de code
-- Re-synchroniser les fichiers de scaffold après une mise à jour des templates CNP
-- Récupérer d'un pipeline cassé
+<Note>
+  Pour une mise à jour normale de votre code, un **simple push sur `main` suffit** — le pipeline se déclenche automatiquement. Le bouton **Redéployer** est réservé aux cas particuliers ci-dessous.
+</Note>
+
+Utilisez **Redéployer** quand :
+
+- Votre pipeline est bloqué et vous voulez repartir de zéro
+- Vous voulez forcer un nouveau déploiement sans modifier votre code
+- Les templates CNP ont été mis à jour et vous voulez en bénéficier
 
 ---
 
-## Depuis le dashboard
+## Comment redéployer
 
-1. Trouvez le service dans la liste
+1. Sur le dashboard CNP, trouvez votre service dans la liste
 2. Cliquez sur **Redéployer**
-3. CNP exécute dans l'ordre :
-   - Re-scaffold (génère et pousse les fichiers CI/CD)
-   - Déclenche un pipeline GitLab sur la branche par défaut
+
+CNP va automatiquement :
+
+1. Re-générer les fichiers de configuration (CI/CD, Docker, Kubernetes)
+2. Les pousser sur votre dépôt GitLab
+3. Déclencher un nouveau pipeline
 
 ---
 
-## Ce que fait le redéploiement
+## Résultat attendu
 
-```mermaid
-flowchart TD
-    A(["POST /api/services/id/redeploy"]) --> B["GetProject\ninfos actuelles du projet"]
-    B --> C["ExtractFramework\ndepuis les topics GitLab"]
-    C --> D{"Framework\ndétecté ?"}
-    D -->|Non| E["❌ 400 Bad Request\nframework non reconnu"]
-    D -->|Oui| F["RenderAll\ngénère fichiers depuis templates"]
-    F --> G["UpsertScaffold\ncrée ou met à jour les fichiers"]
-    G --> H["TriggerPipeline\nnouveau pipeline sur main"]
-    H --> I(["✅ 200 OK · Service mis à jour"])
-```
-
-<Warning>
-  Le framework est détecté automatiquement depuis les topics GitLab. Si aucun topic `go`/`nextjs`/`springboot` n'est trouvé, le redéploiement échoue avec `400 Bad Request`.
-</Warning>
+Le pipeline se relance dans GitLab (visible dans **CI/CD → Pipelines**). Une fois terminé, votre service est mis à jour avec la dernière version de votre code.
 
 ---
 
-## Gestion des erreurs
+## Problèmes courants
 
-| Code | Message | Cause |
-| --- | --- | --- |
-| `400` | `id invalide` | L'ID dans l'URL n'est pas un entier valide |
-| `400` | `framework non reconnu` | Aucun topic de framework sur le projet |
-| `403` | `Token GitLab non configuré` | PAT absent |
-| `502` | `impossible de joindre GitLab` | GitLab inaccessible |
+| Problème | Solution |
+| --- | --- |
+| Pipeline échoue après redéploiement | Consultez les logs GitLab pour l'erreur précise |
+| Service n'apparaît plus | Attendez quelques minutes — le déploiement peut prendre du temps |
+| Erreur « framework non reconnu » | Le tag de framework a été retiré de GitLab — reconfigurez le service |
 
----
-
-## Note sur l'échec de pipeline
-
-Si le déclenchement du pipeline échoue, le redéploiement réussit quand même (`200 OK`). L'erreur est loggée en `WARN`. Vous pouvez déclencher manuellement le pipeline depuis GitLab.
+<Tip>
+  Si le pipeline échoue, consultez l'onglet [Aide et dépannage](/guides/aide) pour les erreurs courantes.
+</Tip>
