@@ -1,0 +1,80 @@
+---
+title: "Aide et dépannage"
+description: "Solutions aux problèmes courants rencontrés sur la plateforme CNP."
+---
+
+# Aide et dépannage
+
+## Mon service n'apparaît pas sur le dashboard
+
+**Cause :** Le tag `cnp-2morgan` a peut-être été retiré de votre projet GitLab.
+
+**Solution :** Allez dans votre projet GitLab → **Settings → General → Topics** et vérifiez que `cnp-2morgan` est présent. Si absent, redéployez votre service depuis CNP.
+
+---
+
+## Mon pipeline CI/CD échoue
+
+Consultez les logs dans GitLab → **CI/CD → Pipelines** → cliquez sur le pipeline rouge.
+
+**Erreurs fréquentes :**
+
+| Message dans les logs | Solution |
+| --- | --- |
+| `Cannot find module '...'` | Dépendance manquante — vérifiez `package.json` |
+| `cannot find package` (Go) | Vérifiez `go.mod` et vos imports |
+| `pip install` échoue | Vérifiez `requirements.txt` |
+| Erreur Docker / Kaniko | Vérifiez votre `Dockerfile` |
+| `Build was canceled` | Relancez le pipeline manuellement |
+
+---
+
+## Je ne peux pas pousser directement sur `main`
+
+C'est normal — CNP protège automatiquement votre branche principale.
+
+**Comment procéder :**
+
+1. Créez une branche : `git checkout -b ma-fonctionnalite`
+2. Committez et poussez : `git push origin ma-fonctionnalite`
+3. Ouvrez une Merge Request sur GitLab → fusionnez dans `main`
+
+Le pipeline se déclenche automatiquement après la fusion.
+
+---
+
+## Mon service ne répond pas à son URL
+
+**Vérifications dans l'ordre :**
+
+1. Le pipeline CI/CD est-il en vert ? (GitLab → **CI/CD → Pipelines**)
+2. Attendez 2-3 minutes après la fin du pipeline
+3. L'URL commence par `http://` (pas `https://`)
+4. Si toujours rien → cliquez sur **Redéployer** sur le dashboard
+
+---
+
+## Le framework détecté est incorrect
+
+Ignorez la détection automatique et **sélectionnez manuellement** le bon framework dans la liste déroulante lors de la configuration.
+
+---
+
+## Mon token GitLab a expiré
+
+La bannière jaune réapparaît sur le dashboard.
+
+1. Créez un nouveau PAT sur GitLab ([guide →](/guides/pat-setup))
+2. Enregistrez-le dans CNP avec sa date d'expiration
+
+---
+
+## Je me suis déconnecté involontairement
+
+La session dure 24h. Reconnectez-vous — toutes vos données sont conservées.
+
+---
+
+## Contacter le support
+
+Si votre problème n'est pas listé ici, contactez votre encadrant ou l'équipe **2Morgan**.

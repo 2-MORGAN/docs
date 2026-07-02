@@ -1,68 +1,62 @@
 ---
-title: "Configurer un PAT GitLab"
-description: "Comment créer et enregistrer un Personal Access Token GitLab pour utiliser CNP."
+title: "Configurer votre accès GitLab"
+description: "Créez et enregistrez votre token GitLab pour que CNP puisse travailler sur vos dépôts."
 ---
 
-## Pourquoi un PAT ?
+# Configurer votre accès GitLab
 
-CNP utilise votre Personal Access Token (PAT) GitLab pour agir en votre nom : lire vos projets, pousser des fichiers de configuration, créer des deploy tokens, protéger des branches et déclencher des pipelines.
+Pour travailler sur vos dépôts, CNP a besoin d'un **Personal Access Token (PAT)** GitLab — un jeton qui lui donne les droits nécessaires pour configurer vos projets en votre nom.
 
-Le token est stocké **chiffré (AES)** dans la base PostgreSQL de CNP — il persiste au redémarrage du backend.
+<Info>
+  CNP utilise ce token pour lire vos projets, pousser les fichiers de configuration (CI/CD, Docker, Kubernetes), et déclencher les pipelines. Le token est stocké de façon **chiffrée et sécurisée**.
+</Info>
 
 ---
 
-## Créer un PAT sur GitLab
+## Créer le token sur GitLab
 
 <Steps>
-  <Step title="Accéder aux paramètres">
-    Connectez-vous à GitLab, puis allez dans **Profile → Preferences → Access Tokens**.
+  <Step title="Ouvrir les paramètres tokens">
+    Connectez-vous à GitLab, puis allez dans votre **profil** (en haut à droite) → **Preferences** → **Access Tokens**.
   </Step>
   <Step title="Créer un nouveau token">
     Cliquez sur **Add new token** et remplissez :
 
-    | Champ | Valeur recommandée |
+    | Champ | Valeur |
     | --- | --- |
-    | Token name | `cnp-platform` |
+    | Token name | `cnp-platform` (ou le nom de votre choix) |
     | Expiration date | Dans 1 an maximum |
-    | Scopes | `api`, `read_user` |
-
-    <Warning>
-      La **date d'expiration est obligatoire** lors de l'enregistrement dans CNP. Notez-la.
-    </Warning>
+    | Scopes | ✅ `api` et ✅ `read_user` |
   </Step>
   <Step title="Copier le token">
-    Copiez le token généré — il ne sera affiché qu'une seule fois.
+    Cliquez sur **Create personal access token** et **copiez immédiatement** le token — il n'est affiché qu'une seule fois.
   </Step>
 </Steps>
 
-### Scopes requis
+---
 
-| Scope | Raison |
-| --- | --- |
-| `api` | Lecture/écriture de projets, variables CI, branches protégées, deploy tokens, pipelines |
-| `read_user` | Lecture du profil utilisateur GitLab (email, username) |
+## Enregistrer le token dans CNP
+
+1. Sur le dashboard CNP, cliquez sur **Configurer le token GitLab** (bannière jaune en haut de page)
+2. Collez votre token dans le champ **Token GitLab**
+3. Saisissez la **date d'expiration** du token (format `YYYY-MM-DD`)
+4. Cliquez sur **Enregistrer**
+
+CNP vérifie immédiatement le token. S'il est valide, votre nom d'utilisateur GitLab s'affiche.
 
 ---
 
-## Enregistrer le PAT dans CNP
+## Renouveler un token expiré
 
-1. Connectez-vous à la plateforme CNP
-2. Si le PAT n'est pas configuré, une bannière jaune s'affiche
-3. Cliquez sur **Configurer le token GitLab**
-4. Remplissez le token **et la date d'expiration** (format `YYYY-MM-DD`)
-5. Cliquez sur **Enregistrer**
+Quand votre token expire, la bannière jaune réapparaît. Créez un nouveau PAT sur GitLab et re-enregistrez-le dans CNP — même procédure.
 
-### Erreurs possibles
+---
 
-| Erreur | Cause | Solution |
+## Erreurs courantes
+
+| Message | Cause | Solution |
 | --- | --- | --- |
-| `Token GitLab invalide` | Token expiré ou incorrect | Générez un nouveau PAT |
-| `la date d'expiration du token est requise` | Champ `expires_at` manquant | Renseignez la date d'expiration |
-| `format de date d'expiration invalide` | Format incorrect | Utilisez `YYYY-MM-DD` |
-| `impossible de joindre GitLab` | Backend ne peut pas contacter GitLab | Vérifiez `GITLAB_BASE_URL` |
-
----
-
-## Persistance
-
-Contrairement aux versions précédentes (store in-memory), le PAT est désormais **persisté dans PostgreSQL** avec le token chiffré. Il survit aux redémarrages du backend.
+| « Token GitLab invalide » | Token incorrect ou expiré | Créez un nouveau PAT |
+| « La date d'expiration est requise » | Champ date vide | Renseignez la date d'expiration |
+| « Format de date invalide » | Format incorrect | Utilisez `YYYY-MM-DD` |
+| « Impossible de joindre GitLab » | Problème réseau | Vérifiez votre connexion et réessayez |

@@ -1,0 +1,92 @@
+---
+title: "Frameworks disponibles"
+description: "Les 5 frameworks supportés par CNP et ce qui est généré pour chacun."
+---
+
+# Frameworks disponibles
+
+CNP supporte **5 frameworks**. La détection est automatique dans la plupart des cas.
+
+---
+
+## Détection automatique
+
+Laissez le champ vide lors de la configuration — CNP analyse les fichiers de votre dépôt :
+
+| Fichier trouvé dans votre dépôt | Framework détecté |
+| --- | --- |
+| `go.mod` ou `go.work` | Go |
+| `next.config.js` / `next.config.ts` | Next.js |
+| `nest-cli.json` | NestJS |
+| `pom.xml` (avec spring-boot) | Spring Boot |
+| `build.gradle` (avec spring-boot) | Spring Boot |
+| `manage.py` | Django |
+| `package.json` avec `"next"` | Next.js |
+| `package.json` avec `"@nestjs/core"` | NestJS |
+| `requirements.txt` / `pyproject.toml` avec `django` | Django |
+
+---
+
+## Go
+
+**Pour** : services backend, APIs REST, microservices
+
+**Ce qui est ajouté à votre dépôt :**
+
+- `.gitlab-ci.yml` — 3 étapes : build · test · docker
+- `Dockerfile` — image alpine légère, build multi-stage
+- `k8s/` — manifests Kubernetes
+
+---
+
+## Next.js
+
+**Pour** : applications web React, frontends TypeScript
+
+**Ce qui est ajouté à votre dépôt :**
+
+- `.gitlab-ci.yml` — 2 étapes : build · docker (avec cache npm)
+- `Dockerfile` — image node alpine
+- `k8s/` — manifests Kubernetes
+
+---
+
+## NestJS
+
+**Pour** : APIs Node.js TypeScript, backends structurés
+
+**Ce qui est ajouté à votre dépôt :**
+
+- `.gitlab-ci.yml` — 2 étapes : build · docker (avec cache npm)
+- `Dockerfile` — image node alpine
+- `k8s/` — manifests Kubernetes
+
+---
+
+## Spring Boot
+
+**Pour** : services Java, APIs enterprise
+
+**Ce qui est ajouté à votre dépôt :**
+
+- `.gitlab-ci.yml` — 3 étapes : test · build · docker (avec cache Maven)
+- `Dockerfile` — image JRE
+- `k8s/` — manifests Kubernetes
+
+---
+
+## Django
+
+**Pour** : applications web Python, APIs REST
+
+**Ce qui est ajouté à votre dépôt :**
+
+- `.gitlab-ci.yml` — 2 étapes : build · docker
+- `Dockerfile` — image python:3.12-slim
+- `k8s/` — manifests Kubernetes
+
+---
+
+<Tip>
+  Votre framework n'est pas dans la liste ? Contactez votre encadrant — de nouveaux frameworks peuvent être ajoutés à la plateforme.
+</Tip>

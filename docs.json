@@ -14,40 +14,19 @@
         "group": "Démarrage",
         "pages": [
           "index",
-          "quickstart",
-          "architecture"
-        ]
-      },
-      {
-        "group": "Concepts",
-        "pages": [
-          "concepts/services",
-          "concepts/frameworks",
-          "concepts/cicd",
-          "concepts/argocd"
+          "quickstart"
         ]
       },
       {
         "group": "Guides",
         "pages": [
+          "guides/connexion",
           "guides/pat-setup",
           "guides/configure-service",
-          "guides/redeploy"
-        ]
-      },
-      {
-        "group": "Déploiement",
-        "pages": [
-          "deployment/configuration",
-          "deployment/infrastructure"
-        ]
-      },
-      {
-        "group": "API Reference",
-        "pages": [
-          "api-reference/authentication",
-          "api-reference/services",
-          "api-reference/gitlab"
+          "guides/mon-service",
+          "guides/redeploy",
+          "guides/frameworks",
+          "guides/aide"
         ]
       }
     ]

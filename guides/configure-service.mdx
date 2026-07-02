@@ -1,94 +1,85 @@
 ---
-title: "Configurer un service"
-description: "Guide étape par étape pour scaffolder un nouveau service cloud-native sur GitLab."
+title: "Déployer un service"
+description: "Comment déployer votre projet GitLab sur Kubernetes avec CNP."
 ---
+
+# Déployer un service
 
 ## Prérequis
 
-- Être connecté à CNP
-- Avoir [configuré votre PAT GitLab](/guides/pat-setup)
-- Avoir un dépôt GitLab existant (peut être vide ou contenir du code)
+- Être connecté à CNP ([guide connexion →](/guides/connexion))
+- Avoir configuré votre accès GitLab ([guide token →](/guides/pat-setup))
+- Avoir un dépôt GitLab avec votre code (vide ou existant)
 
 ---
 
-## Depuis le dashboard
+## Lancer le déploiement
 
-1. Cliquez sur **Nouveau service** (en haut à droite du dashboard)
-2. La modale **Configurer un service** s'ouvre
+1. Sur le dashboard, cliquez sur **Nouveau service**
+2. **Sélectionnez votre dépôt GitLab** dans la liste déroulante
+3. Le **framework est détecté automatiquement** — vérifiez qu'il est correct
 
-### Sélectionner le dépôt
+Si la détection est incorrecte ou indisponible, sélectionnez manuellement :
 
-Le champ affiche tous vos projets GitLab dont vous êtes membre (jusqu'à 100 par page).
-
-### Choisir le framework
-
-Le framework peut être :
-
-**Détection automatique** (recommandé) — laissez le champ vide. CNP analyse les fichiers du dépôt :
-
-| Fichier | Framework détecté |
+| Framework | Choisir si votre projet utilise... |
 | --- | --- |
-| `go.mod` / `go.work` | Go |
-| `next.config.*` | Next.js |
-| `nest-cli.json` | NestJS |
-| `manage.py` | Django |
-| `pom.xml` → spring-boot | Spring Boot |
+| `go` | Go |
+| `nextjs` | Next.js / React |
+| `nestjs` | NestJS (Node.js) |
+| `springboot` | Java / Spring Boot |
+| `django` | Python / Django |
 
-**Sélection manuelle** — choisissez parmi :
-
-| Framework | Stack |
-| --- | --- |
-| `go` | Service backend Go |
-| `nextjs` | Application Next.js TypeScript |
-| `nestjs` | API NestJS TypeScript |
-| `springboot` | Service Java Spring Boot |
-| `django` | Application Python Django |
-
-### Valider
-
-Cliquez sur **Configurer**. CNP exécute séquentiellement :
-
-1. Récupère les infos du projet GitLab
-2. Détecte le framework (si non fourni)
-3. Génère les fichiers via les templates (CI/CD \+ Docker \+ K8s manifests)
-4. Pousse les fichiers sur la branche par défaut
-5. Configure la protection de branche
-6. Ajoute les topics GitLab
-7. Injecte les variables CI
-8. Crée les deploy tokens (repo \+ registry)
-9. Synchronise ArgoCD (secret repo, secret registry, Application)
+4. Cliquez sur **Configurer**
 
 ---
 
-## Gestion des erreurs
+## Ce qui se passe
 
-| Code | Message | Action |
+CNP configure votre service automatiquement :
+
+<Steps>
+  <Step title="Analyse du projet">
+    CNP récupère les informations de votre dépôt et détecte le framework si non spécifié.
+  </Step>
+  <Step title="Génération des fichiers">
+    Les fichiers sont générés et poussés sur votre branche par défaut :
+
+    - `.gitlab-ci.yml` — pipeline CI/CD
+    - `Dockerfile` — image de votre application
+    - `k8s/` — fichiers de déploiement Kubernetes
+  </Step>
+  <Step title="Configuration GitLab">
+    CNP protège votre branche principale et configure les accès nécessaires au déploiement.
+  </Step>
+  <Step title="Déploiement sur Kubernetes">
+    Votre service est enregistré et le pipeline CI/CD démarre automatiquement.
+  </Step>
+</Steps>
+
+<Warning>
+  CNP pousse des fichiers directement sur votre branche par défaut. Si vous avez des modifications non commitées, committez-les d'abord pour éviter les conflits.
+</Warning>
+
+---
+
+## Résultat
+
+Votre service apparaît dans le dashboard avec :
+
+- ✅ Son **URL d'accès** (disponible dès que le premier pipeline a terminé)
+- ✅ Son **framework** détecté
+- ✅ Un lien vers votre **dépôt GitLab**
+
+<Tip>
+  La première URL peut prendre quelques minutes, le temps que le pipeline CI/CD termine son premier build.
+</Tip>
+
+---
+
+## Erreurs possibles
+
+| Message | Cause | Solution |
 | --- | --- | --- |
-| `409 Conflict` | Ce repository est déjà configuré | Vérifiez l'état du dépôt |
-| `403 Forbidden` | Token GitLab non configuré | [Configurez votre PAT](/guides/pat-setup) |
-| `400` | framework non reconnu, selection manuelle requise | Spécifiez le framework manuellement |
-| `500` | repository configuré mais enregistrement de déploiement échoué | ArgoCD indisponible — réessayez avec redeploy |
-
----
-
-## Après la configuration
-
-<Checklist>
-  * [ ] Le service apparaît dans le dashboard avec son URL externe
-  * [ ] Le dépôt GitLab contient `.gitlab-ci.yml`, `Dockerfile` et `k8s/`
-  * [ ] Les topics `cnp-2morgan` et le framework sont visibles sur le projet
-  * [ ] Un premier pipeline CI est en cours
-  * [ ] L'application ArgoCD est visible dans le dashboard ArgoCD
-</Checklist>
-
----
-
-## Remplacer les placeholders de registry
-
-Dans GitLab **Settings → CI/CD → Variables** :
-
-```text
-REGISTRY_URL      → registry.cri.epita.fr  (ou votre registry)
-REGISTRY_USERNAME → votre nom d'utilisateur GitLab
-REGISTRY_TOKEN    → votre PAT avec scope read_registry / write_registry
-```
+| « Ce repository est déjà configuré » | Service déjà existant | Utilisez [Mettre à jour](/guides/redeploy) si vous voulez le redéployer |
+| « Token GitLab non configuré » | PAT absent | [Configurez votre accès GitLab](/guides/pat-setup) |
+| « Framework non reconnu » | Détection impossible | Sélectionnez le framework manuellement |

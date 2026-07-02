@@ -2,83 +2,50 @@
 title: "index"
 ---
 
-# Cloud Native Platform
+# Bienvenue sur CNP
 
-CNP est la plateforme développée par l'équipe **2Morgan** pour automatiser l'intégralité du cycle de vie d'un service cloud-native — de la création du dépôt GitLab jusqu'au déploiement continu sur Kubernetes (AKS) via ArgoCD.
+**CNP** est la plateforme de l'équipe 2Morgan qui vous permet de **déployer automatiquement vos projets GitLab sur Kubernetes**, sans vous soucier de la configuration CI/CD, Docker ou Kubernetes.
 
-## Ce que fait CNP
+En quelques clics, CNP :
+
+- Détecte votre stack technologique (Go, Next.js, NestJS, Spring Boot, Django)
+- Configure le pipeline CI/CD GitLab
+- Génère le Dockerfile et les fichiers Kubernetes
+- Déploie votre application et vous donne une URL d'accès
 
 <CardGroup cols={2}>
-  <Card title="Scaffolding automatique" icon="wand-magic-sparkles">
-    Génère la structure complète d'un projet (Dockerfile, CI/CD, manifests K8s) pour **5 frameworks** : Go, Next.js, NestJS, Spring Boot, Django.
+  <Card title="Déployer mon premier service" icon="rocket" href="/quickstart">
+    Du premier login à l'URL de votre service en production — guide complet.
   </Card>
 
-  <Card title="CI/CD GitLab intégré" icon="gitlab">
-    Pousse directement un `.gitlab-ci.yml` optimisé dans votre dépôt — build, test et publication d'image Docker inclus.
+  <Card title="Configurer l'accès GitLab" icon="key" href="/guides/pat-setup">
+    Créez et enregistrez votre token GitLab pour que CNP puisse travailler sur vos dépôts.
   </Card>
 
-  <Card title="Déploiement ArgoCD" icon="rocket">
-    À la fin du scaffold, CNP crée automatiquement une **Application ArgoCD** sur votre cluster AKS et déclenche le premier déploiement.
+  <Card title="Frameworks disponibles" icon="code" href="/guides/frameworks">
+    Go, Next.js, NestJS, Spring Boot, Django — voyez ce que CNP génère pour votre stack.
   </Card>
 
-  <Card title="Authentification SSO" icon="shield-check">
-    Connexion par identifiants admin **ou** via **Microsoft Entra ID** (Azure AD) avec validation JWKS RSA — pour les équipes EPITA.
+  <Card title="Aide et dépannage" icon="life-ring" href="/guides/aide">
+    Quelque chose ne fonctionne pas ? Consultez les solutions aux problèmes courants.
   </Card>
 </CardGroup>
 
-## Architecture en bref
+---
 
-```mermaid
-graph LR
-    U([Utilisateur]) -->|JWT / Microsoft SSO| API[CNP Backend]
-    API -->|scaffold + push| GL[GitLab]
-    API -->|crée Application| ACD[ArgoCD]
-    GL -->|webhook CI/CD| CI[GitLab CI]
-    CI -->|image Docker| REG[Registry GitLab]
-    ACD -->|pull & deploy| K8S[AKS Kubernetes]
-    API -->|PAT chiffré| PG[(PostgreSQL)]
-```
-
-## Démarrage rapide
+## Comment ça marche
 
 <Steps>
-  <Step title="Enregistrer votre PAT GitLab">
-    Créez un Personal Access Token GitLab avec les scopes `api` \+ `read_user` et enregistrez-le via `POST /api/pat`.
+  <Step title="Vous vous connectez">
+    Via votre compte Microsoft EPITA ou avec un accès administrateur.
   </Step>
-  <Step title="Configurer un service">
-    Appelez `POST /api/services` avec le path GitLab, le namespace K8s et le nom du service. CNP détecte automatiquement le framework et génère tous les fichiers.
+  <Step title="Vous donnez accès à GitLab">
+    En enregistrant un Personal Access Token — CNP l'utilise pour travailler sur vos dépôts.
   </Step>
-  <Step title="Déploiement automatique">
-    ArgoCD prend le relais : il synchronise les manifests K8s depuis GitLab et déploie votre service sur AKS. L'IP de l'Ingress est retournée dans la réponse.
+  <Step title="Vous sélectionnez un dépôt">
+    Choisissez le projet GitLab à déployer. CNP détecte automatiquement votre framework.
+  </Step>
+  <Step title="CNP fait le reste">
+    CI/CD configuré, Docker prêt, déploiement sur Kubernetes — vous recevez l'URL de votre service.
   </Step>
 </Steps>
-
-## Frameworks supportés
-
-| Framework | Détection automatique | CI/CD | K8s manifests |
-| --- | --- | --- | --- |
-| **Go** | `go.mod` | ✅ | ✅ |
-| **Next.js** | `package.json` \+ next | ✅ | ✅ |
-| **NestJS** | `package.json` \+ @nestjs | ✅ | ✅ |
-| **Spring Boot** | `pom.xml` | ✅ | ✅ |
-| **Django** | `manage.py` | ✅ | ✅ |
-
-## Navigation
-
-<CardGroup cols={2}>
-  <Card title="Quickstart" icon="play" href="/quickstart">
-    Lancez votre premier service en moins de 5 minutes.
-  </Card>
-
-  <Card title="Architecture" icon="diagram-project" href="/architecture">
-    Vue d'ensemble des composants et flux de données.
-  </Card>
-
-  <Card title="Guides" icon="book-open" href="/guides/pat-setup">
-    Tutoriels pas à pas pour chaque fonctionnalité.
-  </Card>
-
-  <Card title="API Reference" icon="code" href="/api-reference/authentication">
-    Documentation complète de tous les endpoints REST.
-  </Card>
-</CardGroup>
