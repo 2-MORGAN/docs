@@ -1,0 +1,137 @@
+---
+title: "Gérer les membres d'un projet et sa politique d'accès"
+description: "Ajoutez des membres à un projet, partagez-le avec une classe et réglez sa politique d'accès."
+keywords: ["membres projet", "politique projet", "propriétaire", "verrouiller membres", "partager classe"]
+---
+
+## En bref
+
+Vous donnez l'accès à votre projet personne par personne ou classe par classe, puis vous figez ces règles avec la politique du projet.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Projet > **Membres et accès**, puis **Politique** (administrateurs) | `nimbus services members set`, `nimbus services members delete`, `nimbus services classes set`, `nimbus services classes delete`, `nimbus services policy set` | Gestionnaires des membres ; politique : administrateurs | Immédiat dans Nimbus ; droits GitLab inchangés | Oui, sauf départ ou retrait qui ne se restaurent pas seuls |
+
+## Avant de commencer
+
+- Retrouvez l'identifiant du projet avec `nimbus services list --json`. Ci-dessous, `123` désigne cet identifiant.
+- La personne ajoutée doit s'être connectée une fois à Nimbus. Vérifiez avec `nimbus users search --query alice` (`alice` = début du nom ou de l'e-mail, enseignants et administrateurs uniquement).
+- Si la liste affiche « La liste est verrouillée : seuls les administrateurs peuvent gérer les membres de ce projet. », demandez à un administrateur d'intervenir.
+- Sans être administrateur, vous devez être membre d'une classe pour partager un projet avec elle.
+- La politique du projet est réservée aux administrateurs.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez les membres du projet">
+Ouvrez votre projet, puis cliquez sur **Membres et accès**. Le panneau **Membres du projet** affiche les accès directs (colonnes **Utilisateur**, **Rôle**, **Ajouté le**, **Actions**).
+</Step>
+<Step title="Ajoutez un membre direct">
+Saisissez le nom Nimbus dans **Nom d'utilisateur**, choisissez le **Rôle** (**Membre** ou **Propriétaire**), puis cliquez sur **Ajouter le membre**. Le rôle **Propriétaire** exige d'être administrateur ou déjà propriétaire du projet.
+</Step>
+<Step title="Modifiez ou retirez un membre">
+Cliquez sur **Modifier**, puis sur **Enregistrer le rôle**. Cliquez sur **Retirer**, puis confirmez avec **Retirer le membre**. Le projet garde toujours au moins un propriétaire.
+</Step>
+<Step title="Quittez un projet">
+La carte **Quitter le projet** ne retire que votre accès individuel. Cliquez sur **Quitter le projet**, puis sur **Confirmer le départ**.
+</Step>
+<Step title="Partagez le projet avec une classe">
+Dans **Accès des classes**, choisissez la **Classe**, puis le **Rôle de la classe** (**Membre** ou **Propriétaire**). Cliquez sur **Enregistrer l'accès**, puis confirmez. Chaque membre actuel et futur de la classe hérite de ce rôle.
+</Step>
+<Step title="Retirez un partage par classe">
+Cliquez sur **Retirer** en face de la classe, puis confirmez. Les membres perdent cet accès, mais leurs accès individuels et ceux d'autres classes sont conservés.
+</Step>
+<Step title="Réglez la politique du projet">
+Cliquez sur **Politique**. Choisissez le **Type de projet** (**Personnel** ou **Équipe**), sans effet sur les rôles existants. Cochez **Verrouiller la liste des membres** pour réserver sa gestion aux administrateurs. Cliquez sur **Enregistrer la politique**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les accès">
+```sh
+nimbus services members list 123
+```
+Cette commande affiche les membres directs, les partages par classe, la politique et votre propre rôle.
+</Step>
+<Step title="Ajoutez ou modifiez un membre">
+```sh
+nimbus services members set 123 --username alice --role member
+```
+`--username` attend le nom utilisé dans Nimbus. `--role` vaut `owner` (propriétaire) ou `member` (membre).
+</Step>
+<Step title="Retirez un membre">
+```sh
+nimbus services members delete 123 <SUB> --yes
+```
+`<SUB>` est l'identifiant du membre affiché par la commande `list`. L'option `--yes` confirme sans dialogue.
+</Step>
+<Step title="Partagez avec une classe">
+```sh
+nimbus services classes set 123 7 --role member
+```
+`7` est l'identifiant de la classe, lu avec `nimbus classes list`. Le rôle `owner` exige d'être administrateur ou déjà propriétaire du projet.
+</Step>
+<Step title="Retirez un partage par classe">
+```sh
+nimbus services classes delete 123 7 --yes
+```
+Cette commande retire le partage avec la classe `7`. Les accès individuels des bénéficiaires restent en place.
+</Step>
+<Step title="Réglez la politique">
+```sh
+nimbus services policy set 123 --kind personal
+```
+`--kind` vaut `personal` (personnel), `team` (équipe) ou `course` (cours, en CLI uniquement). Ajoutez `--members-locked` pour verrouiller la liste. Omettre `--members-locked` lève le verrou : il repasse à `false`.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- L'entrée **Membres et accès** affiche le nouveau membre ou le nouveau partage avec son rôle.
+- La commande `nimbus services members list 123` renvoie la liste à jour. Vos droits GitLab restent inchangés.
+
+## Limites
+
+- Les seuls rôles de projet sont `owner` (propriétaire) et `member` (membre). Le rôle `supervisor` (encadrant) vient d'accès historiques : il ne s'attribue pas.
+- Pour laisser alice travailler sans qu'elle puisse supprimer : donnez-lui le rôle **Membre** (`--role member`). Elle peut voir le projet, le démarrer et l'arrêter, gérer les variables d'environnement et l'identité, mais elle ne peut ni le configurer ni le supprimer ni gérer la base de données.
+- Le projet garde toujours au moins un propriétaire : le retrait du dernier est refusé.
+- Partager un projet ou en retirer un membre ne change pas les droits GitLab, qui restent gérés dans GitLab.
+- Les projets d'équipe tirent leurs membres de leur équipe : leur liste ne se modifie pas ici.
+- Les anciennes pages `/dashboard/courses` redirigent vers `/dashboard`. Il n'existe aucune commande `courses`.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « username et role (owner ou member) requis » (400) | Rôle manquant ou invalide | Relancez avec `--role owner` ou `--role member` |
+| « le rôle encadrant est réservé aux accès historiques conservés par la migration » (400) | Rôle `supervisor` demandé | Attribuez `owner` ou `member` |
+| « utilisateur inconnu : la personne doit s'être connectée une fois à Nimbus » (404) | Compte jamais connecté | Faites connecter la personne une fois, puis réessayez |
+| « membre introuvable » (404) | `<SUB>` inconnu | Relisez la liste avec `nimbus services members list 123` |
+| « le projet doit garder au moins un propriétaire » (409) | Dernier propriétaire visé | Nommez d'abord un autre propriétaire |
+| « les membres de ce projet sont ceux de son équipe : modifiez l'équipe du cours » (409) | Projet d'équipe | Gérez les membres au niveau de l'équipe |
+| « Votre rôle ne permet pas de modifier cette personne. » (formulaire) | Rôle insuffisant pour modifier cette personne | Demandez à un propriétaire ou à un administrateur |
+| « kind (personal, team ou course) requis » (400) | Type manquant ou invalide | Relancez avec `--kind personal`, `--kind team` ou `--kind course` |
+| « accès refusé » (403) | Droit insuffisant | Vérifiez votre rôle avec la commande `list` |
+| « service introuvable » (404) | Projet inconnu ou sans relation avec vous | Vérifiez l'identifiant avec `nimbus services list --json` |
+
+## Pour un agent
+
+1. Demandez l'identifiant du projet, le nom Nimbus de la personne et le rôle souhaité, puis attendez la réponse.
+2. Vérifiez le compte avec `nimbus users search --query <NOM>` (`<NOM>` = nom ou e-mail cherché). Constatez avec `nimbus services members list 123`.
+3. Demandez l'accord explicite avant tout retrait ou `policy set` : le retrait ne s'annule pas et chaque `policy set` remplace toute la politique.
+4. Ne déduisez jamais l'accès à un projet des droits GitLab : partager un projet ne change pas les droits GitLab.
+
+## Voir aussi
+
+- [Gérer les classes et les inscriptions](/plateforme/classes)
+- [Comprendre les rôles](/plateforme/roles)
+- [Administrer la plateforme](/administration/plateforme)

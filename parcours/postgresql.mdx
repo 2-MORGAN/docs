@@ -1,0 +1,126 @@
+---
+title: "Ajouter PostgreSQL et sauvegarder votre base"
+description: "Créez la base PostgreSQL de mon-appli, lisez ses variables de connexion, sauvegardez avant un changement risqué puis restaurez."
+keywords: ["postgresql", "base de données", "sauvegarde", "restauration", "DB_HOST"]
+---
+
+Vous partez d'une application sans base et vous terminez avec une base qui lit et écrit, protégée par une sauvegarde avant chaque changement risqué.
+
+## Avant de commencer
+
+- Votre application mon-appli est déployée et vous connaissez son identifiant, ici `123` à titre d'exemple. Retrouvez le vôtre dans l'URL de sa fiche.
+- Vous êtes propriétaire ou administrateur du projet. Les autres rôles voient le message « La gestion de la base est réservée aux propriétaires et administrateurs. »
+- Votre application n'est pas un site statique. Un site statique ne peut pas se connecter directement à PostgreSQL.
+- La CLI est installée et connectée. Vérifiez la connexion avant de commencer.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Constatez l'absence de base">
+Ouvrez la fiche de mon-appli, puis l'onglet **PostgreSQL**. Le message « Aucune base PostgreSQL configurée. » confirme qu'aucune base n'existe. Le bouton **Ajouter PostgreSQL** propose d'en créer une.
+</Step>
+<Step title="Créez la base sans migration automatique">
+Cliquez sur **Ajouter PostgreSQL**. Le dialogue **PostgreSQL et migrations** vous demande comment appliquer le schéma. Choisissez **Gestion manuelle**, qui crée la base sans exécuter de migration. Cliquez sur **Créer PostgreSQL** et attendez la fin de la création.
+</Step>
+<Step title="Lisez les variables de connexion">
+Ouvrez l'onglet **Variables** de l'application. Vous y trouvez `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` et `DATABASE_URL`, injectées automatiquement. Le mot de passe ne s'affiche jamais dans l'interface, utilisez ces variables dans votre code sans les copier ailleurs.
+</Step>
+<Step title="Sauvegardez avant le changement risqué">
+Ouvrez le panneau **Sauvegardes** sous la carte **PostgreSQL**. Cliquez sur **Sauvegarder maintenant** avant toute migration ou suppression massive. Le message de confirmation indique que la sauvegarde est créée et elle rejoint la liste.
+</Step>
+<Step title="Restaurez en cas de problème">
+Repérez votre sauvegarde dans la liste, puis cliquez sur son action de restauration. Confirmez dans le dialogue avec **Restaurer la base**. Nimbus sauvegarde d'abord l'état actuel, puis remplace les données par la sauvegarde choisie.
+</Step>
+<Step title="Retenez le caractère définitif de la suppression">
+Ne supprimez la base que si vous l'assumez. **La suppression détruit la base et son stockage.** Nimbus prend automatiquement une sauvegarde de sécurité avant de supprimer, mais la suppression reste irréversible.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Vérifiez qu'aucune base n'existe">
+```sh
+nimbus services postgres get 123 --json
+```
+Elle renvoie une absence de base pour l'application `123`, ce qui autorise la création.
+</Step>
+<Step title="Préparez le fichier de migration manuelle">
+Créez un fichier nommé `migration.json` contenant exactement `{"migration": {"mode": "manual"}}`. Ce fichier demande une base avec **Gestion manuelle**, sans migration automatique.
+</Step>
+<Step title="Créez la base PostgreSQL">
+```sh
+nimbus services postgres create 123 --input migration.json --json
+```
+Elle crée une base `postgres:16-alpine` avec un stockage de `1Gi` par défaut (`2Gi` possible), puis renvoie ses informations sans le mot de passe.
+</Step>
+<Step title="Lisez les variables injectées">
+```sh
+nimbus services env list 123 --json
+```
+Elle renvoie les noms des variables de l'application, dont `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` et `DATABASE_URL`, sans jamais renvoyer leurs valeurs. Vous ne pouvez lire la valeur d'aucune variable, pas même `DB_PASSWORD` : utilisez ces noms tels quels dans votre code.
+</Step>
+<Step title="Créez une sauvegarde avant le changement risqué">
+```sh
+nimbus services postgres backups create 123 --json
+```
+Elle crée une sauvegarde manuelle et renvoie sa fiche, dont son identifiant.
+</Step>
+<Step title="Listez les sauvegardes disponibles">
+```sh
+nimbus services postgres backups list 123 --json
+```
+Elle renvoie les sauvegardes triées de la plus récente à la plus ancienne. Chaque identifiant suit le format date plus origine, par exemple `20240115T020000Z-manual`. Notez le vôtre sous le nom `ID_SAUVEGARDE`, que vous retrouverez dans la sortie de la commande `list`.
+</Step>
+<Step title="Téléchargez la sauvegarde">
+```sh
+nimbus services postgres backups get 123 20240115T020000Z-manual --output ./sauvegarde.dump --force
+```
+Elle télécharge la sauvegarde `20240115T020000Z-manual`, qui n'est qu'un exemple à remplacer par votre `ID_SAUVEGARDE`, dans le fichier `./sauvegarde.dump`.
+</Step>
+<Step title="Restaurez la sauvegarde">
+```sh
+nimbus services postgres backups restore 123 20240115T020000Z-manual --yes --json
+```
+Elle sauvegarde d'abord l'état actuel par sécurité, puis remplace les données par la sauvegarde `20240115T020000Z-manual`, à remplacer par votre `ID_SAUVEGARDE`, et renvoie le résultat.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La carte **PostgreSQL** affiche la base, l'hôte, le port, l'utilisateur et le mode **Gestion manuelle**.
+- L'onglet **Variables** liste `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` et `DATABASE_URL`.
+- Le panneau **Sauvegardes** affiche votre sauvegarde manuelle avec sa date, sa taille et son origine.
+- En CLI, `nimbus services postgres get 123 --json` renvoie la base et `backups list` inclut votre sauvegarde.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `La gestion de la base est réservée aux propriétaires et administrateurs.` | Votre rôle ne permet pas de gérer la base | Demandez à un propriétaire ou à un administrateur de créer la base |
+| `PostgreSQL n'est pas disponible pour un site statique.` | Votre application est un site statique | Déployez une application avec un serveur, seule compatible avec PostgreSQL |
+| `Les paramètres PostgreSQL sont incompatibles avec la base existante.` | La base a déjà été créée avec d'autres paramètres | Vérifiez-la avec `postgres get` au lieu de la recréer |
+| `Cette sauvegarde ou cette base est introuvable.` | L'identifiant de sauvegarde est faux ou la base a disparu | Relistez les sauvegardes et copiez l'identifiant exact |
+| `Démarrez la base PostgreSQL pour créer ou restaurer une sauvegarde.` | La base est arrêtée | Démarrez l'application, puis relancez la sauvegarde ou la restauration |
+
+## Pour un agent
+
+1. Demandez l'identifiant de l'application et le mode de migration souhaité. Attendez la réponse, avec `manual` par défaut.
+2. Constatez l'absence de base avec `services postgres get 123 --json`, où `123` est l'identifiant de l'application.
+3. Créez `migration.json` avec le corps exact `{"migration": {"mode": "manual"}}`, puis `services postgres create 123 --input migration.json --json`.
+4. Lisez les variables avec `services env list 123 --json` et transmettez les noms `DB_*` sans jamais afficher `DB_PASSWORD` en clair.
+5. Avant tout changement risqué, créez une sauvegarde avec `backups create`, puis constatez avec `backups list`.
+6. Pour restaurer, demandez l'accord explicite, car la restauration remplace les données. N'exécutez jamais une suppression de base sans accord écrit, car elle est irréversible.
+
+## Voir aussi
+
+- [PostgreSQL géré](/plateforme/postgresql)
+- [Sauvegardes](/plateforme/sauvegardes)
+- [Variables d'environnement](/plateforme/variables)

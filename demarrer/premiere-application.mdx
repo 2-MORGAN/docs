@@ -1,0 +1,124 @@
+---
+title: "Votre première application en dix minutes"
+description: "Installez la CLI, connectez-vous, reliez votre compte GitLab et déployez votre premier dépôt sur Nimbus."
+keywords: ["première application", "déployer", "démarrer", "quickstart", "tutoriel"]
+---
+
+Vous allez mettre en ligne une application existante dont le framework est reconnu par Nimbus. Vous partez de rien : la CLI n'est pas installée et aucun compte GitLab n'est relié. À la fin, votre application tourne sur la cible recommandée et vous savez le vérifier.
+
+<Note>Choix assumé : la cible de ce parcours est `k3s-oracle`, la cible allumée en permanence que Nimbus recommande par défaut. Sans cible explicite, le serveur choisit aujourd'hui `aks`, qui est souvent éteint : passez donc toujours la cible explicitement.</Note>
+
+## Avant de commencer
+
+Vous avez besoin d'un compte Nimbus et d'un compte sur `gitlab.cri.epita.fr`. Vous avez aussi besoin d'un dépôt GitLab qui contient déjà du code dans un framework reconnu (`go`, `nextjs`, `springboot`, `nestjs`, `django`, `static` ou `spa`).
+
+- Après la connexion, vérifiez que votre session est active : `nimbus auth whoami` répond sans erreur quand vous êtes connecté.
+- Vérifiez votre dépôt : il apparaît dans la liste rendue par `nimbus gitlab repositories --json` une fois le token posé.
+- Vous tapez les commandes dans n'importe quel terminal : ce parcours ne demande aucun code sur votre machine.
+
+## Parcours
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Connectez-vous">
+Ouvrez `https://cnp.2morgan.fun` dans votre navigateur. Cliquez sur **Se connecter**. Validez sur la page de connexion qui s'affiche. Vous arrivez sur la page **Mes projets**.
+</Step>
+<Step title="Reliez votre compte GitLab">
+Ouvrez **Paramètres** dans la barre de navigation. Repérez la carte **GitLab EPITA**. Cliquez sur **Ajouter un token GitLab**. Créez d'abord le token sur `gitlab.cri.epita.fr` avec les scopes `api` et `read_user`. Collez-le dans le champ **Token GitLab**, choisissez une **Date d’expiration** future, puis cliquez sur **Ajouter**. Le badge passe à **Token enregistré**.
+</Step>
+<Step title="Créez le projet">
+Cliquez sur **Nouveau projet** depuis la page **Mes projets**. À l'étape **Choisir un dépôt GitLab**, gardez le choix **Importer un dépôt**. Tapez le nom de votre dépôt dans **Rechercher un dépôt** et sélectionnez-le. Ouvrez la liste **Cible de déploiement** et choisissez la cible recommandée allumée en permanence. Laissez la case **Déployer ce dépôt maintenant** cochée. Cliquez sur **Continuer** jusqu'à l'étape **Vérifier le projet**, puis cliquez sur **Déployer l’application**. Le bandeau **Déploiement en cours** s'affiche.
+</Step>
+<Step title="Suivez le déploiement">
+Vous arrivez sur la fiche du projet pendant que le pipeline tourne. La construction prend plusieurs minutes : attendez le badge **En ligne** sur la fiche, puis passez à la section Vérifier ci-dessous.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Installez la CLI">
+Sur macOS ou Linux, lancez la commande suivante. Elle installe Nimbus dans `~/.local/bin`, sans `sudo`.
+```sh
+curl -fsSL https://github.com/2-MORGAN/docs/releases/latest/download/install.sh | sh
+```
+Sur Windows, lancez le script `install.ps1` publié au même endroit. Vérifiez ensuite que `nimbus --help` répond.
+</Step>
+<Step title="Connectez-vous">
+Lancez la commande suivante. Elle ouvre votre navigateur avec un code pré-rempli : validez dans le navigateur pour terminer.
+```sh
+nimbus auth login
+```
+Elle affiche `Connecté : <UTILISATEUR> (<ENDPOINT>)`. `<UTILISATEUR>` est votre nom de compte Nimbus et `<ENDPOINT>` est l'adresse de l'API. Vérifiez la session avec `nimbus auth whoami`.
+</Step>
+<Step title="Enregistrez votre token GitLab">
+Créez un token sur `gitlab.cri.epita.fr` avec les scopes `api` et `read_user`. Enregistrez-le dans un fichier privé, par exemple `pat.txt`, puis lancez la commande suivante. `<DATE>` est une échéance postérieure à aujourd'hui au format `AAAA-MM-JJ`, par exemple `2027-01-31`.
+```sh
+nimbus pat set --token-file pat.txt --expires-at 2027-01-31 --yes
+```
+Elle répond avec votre nom GitLab. Supprimez ensuite `pat.txt` : le token est conservé côté Nimbus et ne sera jamais réaffiché.
+</Step>
+<Step title="Choisissez la cible">
+Listez les cibles disponibles avec la commande suivante. Elle rend vos cibles de déploiement au format JSON.
+```sh
+nimbus targets list --json
+```
+Repérez la cible recommandée allumée en permanence. Vous passerez son identifiant à la commande de déploiement.
+</Step>
+<Step title="Déployez votre dépôt">
+Retrouvez l'identifiant numérique de votre dépôt avec la commande suivante. `<ID_DEPOT>` est l'identifiant GitLab du dépôt (le champ `id` de la réponse), par exemple `123`.
+```sh
+nimbus gitlab repositories --json
+```
+Lancez ensuite le déploiement avec la commande suivante. `<FRAMEWORK>` est le framework de votre dépôt, par exemple `go`. Si vous omettez `--framework`, Nimbus détecte le framework automatiquement.
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle
+```
+Elle attend la fin du pipeline et de la synchronisation, jusqu'à dix minutes. Laissez la commande aller jusqu'au bout : elle affiche le service créé.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Dans l'interface, la fiche du projet affiche l'application avec le badge **En ligne**. Quand l'application est en ligne, la fiche affiche aussi son adresse et le lien **Ouvrir l’application**.
+- En CLI, la commande suivante décrit l'état du service. `123` est l'identifiant rendu par la commande de déploiement.
+```sh
+nimbus services status 123 --json
+```
+- La commande suivante liste vos applications avec leur adresse : ouvrez l'adresse affichée pour votre application.
+```sh
+nimbus services list --json
+```
+- Si le pipeline a tourné, la commande suivante le confirme.
+```sh
+nimbus services pipeline 123
+```
+- Pour publier l'application en HTTPS avec une adresse stable, suivez le parcours d'exposition.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Token GitLab invalide` (422 ; l'interface affiche `Token GitLab invalide. Vérifiez les scopes api et read_user.`) | Token faux ou scopes insuffisants | Recréez un token avec les scopes `api` et `read_user`, puis enregistrez-le à nouveau |
+| `repository_id est requis` (400) | Identifiant de dépôt oublié | Ajoutez `--repository-id 123` à la commande `services configure` |
+| `framework non supporté` (400) ; si la détection automatique échoue : `framework non reconnu, selection manuelle requise` (422) | Framework inconnu, mal orthographié, ou indétectable | Retirez `--framework` pour laisser la détection automatique, ou passez un framework reconnu |
+| `Le cluster AKS était arrêté : son démarrage est lancé. Réessayez le déploiement dans 5 à 10 minutes.` (503, `Retry-After: 300`) | La cible `aks` était arrêtée | Attendez 5 à 10 min puis relancez, ou déployez sur la cible allumée en permanence |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur : le dépôt source, le framework s'il le connaît, et la cible voulue (recommandez la cible allumée en permanence).
+2. Ne commencez rien sans accord explicite pour chaque écriture (installation, connexion, enregistrement du token, déploiement).
+3. Constatez chaque étape : `nimbus auth whoami` pour la session, `nimbus pat status --json` pour le token, `nimbus targets list --json` pour la cible, `nimbus services status 123 --json` pour le résultat.
+4. Ne lisez ni n'affichez jamais le contenu du token : manipulez-le uniquement via `--token-file`.
+
+## Voir aussi
+
+- [Relier votre compte GitLab](/demarrer/gitlab)
+- [Déployer un dépôt existant](/parcours/depot-existant)
+- [Exposer votre application en HTTPS](/parcours/exposer-application)

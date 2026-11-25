@@ -1,0 +1,128 @@
+---
+title: "Créer une classe et y inscrire vos élèves"
+description: "Créez la classe Babbage, importez vos élèves depuis un CSV, contrôlez les inscriptions et corrigez les erreurs."
+keywords: ["classe", "inscrire élèves", "import CSV", "Babbage", "inscriptions"]
+---
+
+Vous inscrivez tous vos élèves de la classe Babbage d'un coup, puis vérifiez leurs accès.
+
+## Avant de commencer
+
+- Vous êtes administrateur de Nimbus : seuls les administrateurs créent une classe et importent des inscriptions.
+- Votre fichier CSV de 1 Mo maximum liste vos élèves (colonnes `email,nom,classe`).
+- Vérifiez votre session avec `nimbus auth whoami`, qui doit répondre sans erreur.
+- Un élève jamais connecté s'inscrit par e-mail et reste en attente jusqu'à sa première connexion.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Créez la classe Babbage">
+Ouvrez la page **Classes**. Dans la carte **Créer une classe**, saisissez `Babbage`. Cliquez sur **Créer la classe** : le message **La classe a été créée.** confirme.
+</Step>
+<Step title="Préparez le fichier CSV">
+Préparez un fichier `classes.csv` selon l'aide de la carte **Importer les inscriptions** : **Fichier CSV de 1 Mo maximum, avec les colonnes email,nom,classe.**
+
+```csv
+email,nom,classe
+eleve@epita.fr,Prénom Nom,Babbage
+```
+
+Chaque ligne décrit un élève : une adresse valide, un nom, le nom de la classe.
+</Step>
+<Step title="Importez les inscriptions">
+Dans la carte **Importer les inscriptions**, choisissez `classes.csv` dans le champ **Fichier CSV**. Cliquez sur **Importer le CSV** : le message **L’import a été traité. Consultez le bilan.** confirme.
+</Step>
+<Step title="Contrôlez les inscrits">
+Ouvrez la classe Babbage : le détail affiche `{n} inscrits`, où `{n}` est le nombre d'inscrits. Chaque personne porte le badge **Compte lié** ou **En attente**, selon sa première connexion. Retrouvez un élève avec **Rechercher…**. Corrigez les lignes invalides signalées. Importez de nouveau le fichier corrigé.
+</Step>
+<Step title="Retirez un élève si besoin">
+Si un élève quitte la classe, cliquez sur **Retirer** sur sa ligne. Confirmez la demande `Retirer <NOM> ?`, où `<NOM>` est le nom affiché ou l'e-mail de l'élève. La personne perd les accès hérités de la classe, mais ses accès individuels sont conservés.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les classes existantes">
+```sh
+nimbus classes list --json
+```
+Cette commande renvoie vos classes avec leur identifiant (`7` pour Babbage dans la suite).
+</Step>
+<Step title="Créez la classe Babbage">
+```sh
+nimbus classes create --name Babbage --json
+```
+Elle crée la classe `Babbage` et renvoie sa fiche avec son identifiant.
+</Step>
+<Step title="Importez le fichier CSV">
+```sh
+nimbus classes import --input classes.csv --json
+```
+Elle importe `classes.csv` et renvoie un rapport avec les champs `created_classes`, `added`, `already_present`, `pending` et `invalid`.
+</Step>
+<Step title="Vérifiez les membres inscrits">
+```sh
+nimbus classes members list 7 --json
+```
+Elle liste les membres de la classe `7`. Chaque membre connecté expose une clé `sub`, absente tant que la personne ne s'est jamais connectée (badge **En attente** dans l'interface).
+</Step>
+<Step title="Ajoutez des élèves un par un">
+Pour des comptes Nimbus existants, utilisez leurs noms d'utilisateur :
+```sh
+nimbus classes members add 7 --usernames alice,brahim --json
+```
+Elle inscrit `alice` et `brahim` dans la classe `7`. Pour des e-mails, créez `members.json` avec ce contenu exact :
+```json
+{"members": [{"email": "eleve@epita.fr", "display_name": "Prénom Nom"}]}
+```
+Puis importez-le :
+```sh
+nimbus classes members add 7 --input members.json --json
+```
+Elle inscrit l'élève décrit ; une adresse inconnue reste **En attente** jusqu'à sa première connexion.
+</Step>
+<Step title="Retirez un élève si besoin">
+```sh
+nimbus classes members remove 7 <MEMBER_ID> --yes --json
+```
+Elle retire le membre de la classe `7`. `<MEMBER_ID>` est l'identifiant numérique affiché par `members list`. `--yes` évite la confirmation.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La page **Classes** affiche la classe Babbage dans la liste.
+- Son détail affiche `{n} inscrits` et les badges **Compte lié** ou **En attente**.
+- En CLI, `nimbus classes members list 7 --json` renvoie les mêmes inscrits.
+- Le rapport d'import affiche les champs `created_classes`, `added`, `already_present`, `pending` et `invalid` avec des compteurs cohérents.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Le fichier dépasse la limite de 1 Mo.` | Votre fichier CSV dépasse 1 Mo. | Réduisez le fichier sous 1 Mo puis recommencez (en CLI, l'erreur commence par `CSV invalide :`). |
+| `adresse e-mail invalide` | Une ligne contient une adresse mal formée. | Corrigez l'adresse dans `classes.csv` et importez de nouveau. |
+| `colonnes attendues : email,nom,classe` | Une ligne contient moins de trois champs, ou le nom de la classe est vide. | Complétez la ligne avec les trois valeurs, puis recommencez. |
+| `une classe porte déjà ce nom` | La classe Babbage existe déjà sous ce nom. | Retrouvez-la avec la liste ou **Rechercher…** au lieu de la recréer. |
+
+## Pour un agent
+
+1. Demandez le nom de la classe, le fichier CSV et l'identifiant après création (compte administrateur exigé).
+2. Vérifiez le CSV avant l'import : trois colonnes `email,nom,classe`, 1 Mo maximum, une ligne par élève.
+3. Demandez l'accord explicite avant chaque écriture : `classes create`, `classes import`, `classes members add` et `classes members remove`.
+4. Constatez avec `nimbus classes members list 7 --json` et lisez les champs du rapport d'import.
+5. Traitez les comptes **En attente** comme normaux : reconnus à leur première connexion, sans autre action.
+
+## Voir aussi
+
+- [Gérer les classes](/plateforme/classes)
+- [Inviter votre équipe sur un projet](/parcours/equipe)
+- [Rôles et permissions](/plateforme/roles)

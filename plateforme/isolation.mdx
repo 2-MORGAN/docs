@@ -1,0 +1,58 @@
+---
+title: "Isoler votre application des applications voisines"
+description: "Comprenez comment Nimbus isole votre application des voisines et où ne pas mettre de secrets sensibles."
+keywords: ["isolation réseau", "networkpolicy", "espace partagé", "secrets sensibles"]
+---
+
+## En bref
+
+La plateforme isole automatiquement votre application de ses voisines, et vous n'avez rien à activer de votre côté.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Aucune : il n'existe ni panneau ni réglage d'isolation dans l'interface | Aucune : il n'existe aucune commande d'isolation dans la CLI | Personne, la plateforme l'applique seule | Au déploiement de chaque service | Sans objet |
+
+## Avant de commencer
+
+- Votre service est déployé sur Nimbus. L'isolation s'applique au déploiement, donc il n'y a aucun prérequis à vérifier de votre côté.
+- Vous savez où vivent vos secrets sensibles. Si votre application partage l'espace mutualisé des applications étudiantes, lisez la section **Limites** avant d'y stocker un secret important.
+
+## Faire
+
+Il n'y a rien à activer : aucune interface ni aucune commande ne gère l'isolation. La plateforme applique l'isolation à chaque déploiement, puis la revérifie à intervalle régulier.
+
+Concrètement, chaque application est isolée de ses voisines : seules votre application et les services de la plateforme peuvent la joindre. En sortie, votre application accède normalement à Internet, à l'exception d'un service interne réservé à la plateforme. Quand vous supprimez un service, la plateforme retire aussi son isolation.
+
+Pour protéger le secret de connexion de votre application (`OIDC_CLIENT_SECRET`), suivez la page [Connecter votre application avec le compte de l'école](/plateforme/identite-application). Elle explique comment activer la connexion, choisir entre client **Public** et **Confidentiel**, et régénérer le secret s'il a fuité.
+
+## Vérifier
+
+- Votre application répond normalement à son adresse publique. L'isolation ne change rien à son fonctionnement visible.
+- Vous ne voyez aucune règle réseau dans l'interface : c'est normal, l'isolation reste invisible par conception.
+
+## Limites
+
+- L'isolation protège contre une application compromise pendant son exécution. Elle ne couvre que les ressources que la plateforme génère pour votre service.
+- L'espace mutualisé des applications étudiantes n'est pas prévu pour des secrets sensibles. Un autre manifest du même espace peut référencer votre Secret et lire son contenu. Demandez un espace dédié à un administrateur si votre application manipule des secrets sensibles.
+- Si vous ajoutez vous-même des ressources avec des étiquettes personnalisées en dehors du déploiement généré, la plateforme ne les isole pas et ne les autorise pas automatiquement à joindre votre application.
+
+## Si ça échoue
+
+L'isolation ne produit aucun message d'erreur visible : soit elle s'applique au déploiement, soit c'est une limite connue de l'espace mutualisé.
+
+| Situation | Cause | Geste |
+| --- | --- | --- |
+| Votre application ne joint plus un service voisin qu'elle joignait avant | La règle réseau bloque ce trafic par conception | Vérifiez que cet appel est légitime, puis contactez l'équipe Nimbus |
+| Vous soupçonnez qu'un secret de votre application a été lu par une autre application du même espace | L'espace mutualisé expose les Secrets aux autres manifests | Régénérez le secret concerné, par exemple avec **Régénérer le secret** pour `OIDC_CLIENT_SECRET`, puis demandez un espace dédié à un administrateur |
+
+## Pour un agent
+
+1. Ne cherchez aucune commande d'isolation : il n'en existe pas. N'inventez aucun flag ni réglage.
+2. Si l'utilisateur stocke un secret sensible dans l'espace mutualisé, recommandez un espace dédié et demandez-lui de contacter un administrateur.
+3. Pour le secret de connexion, renvoyez vers la page d'identité et constatez avec `nimbus services identity get 123`, où `123` désigne l'identifiant du service.
+
+## Voir aussi
+
+- [Connecter votre application avec le compte de l'école](/plateforme/identite-application)
+- [Exposer votre application en HTTPS](/plateforme/url-et-passerelle)
+- [Gérer les variables et secrets](/plateforme/variables)

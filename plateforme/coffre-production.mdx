@@ -1,0 +1,121 @@
+---
+title: "Mettre à jour les secrets de production"
+description: "Importez, exportez et resynchronisez le fichier .env.production de votre application Nimbus déployée."
+keywords: ["coffre production", ".env.production", "secrets production", "resynchroniser", "prod-vault"]
+---
+
+## En bref
+
+Utilisez ce coffre quand vous voulez mettre à jour en bloc les secrets lus par votre application déployée. Si vous voulez modifier une seule variable du runtime, utilisez la page Variables. Si vous voulez partager le fichier `.env` utilisé sur vos postes, utilisez le coffre de développement.
+
+Chaque import et chaque resynchronisation appliquent le coffre à l'application déployée et redémarrent ses pods. L'application redémarrera, même si vous ne changez qu'une valeur.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Groupe **Configuration**, élément **Coffre de production**, sur un service déployé | `nimbus prod-vault status`, `nimbus prod-vault export`, `nimbus prod-vault import`, `nimbus prod-vault resync` | Propriétaires, membres et administrateurs (`ManageEnv`) ; superviseurs jamais | Immédiatement : l'import et la resynchronisation redémarrent l'application | Non : l'import remplace tout le contenu et les variables absentes sont retirées |
+
+## Avant de commencer
+
+- Votre service est déployé et sa cible n'est pas une cible edge. Sur une cible edge, le panneau est indisponible car Cloudflare ne fournit pas de variables d'exécution.
+- Vous connaissez l'identifiant du projet (`123` dans les exemples).
+- Vous êtes connecté et vous avez un rôle autorisé : propriétaire, membre ou administrateur. Sinon, le panneau affiche **Vous n'avez pas accès au coffre de production de cette application.**
+- Avant votre premier import, listez les variables existantes que l'application doit conserver et incluez-les dans votre fichier, sinon elles seront retirées du runtime.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau">
+Dans le menu du service déployé, ouvrez le groupe **Configuration** puis cliquez sur **Coffre de production**. Le panneau **Coffre de production** précise **Importez, exportez ou resynchronisez les variables utilisées par l'application déployée.** La section **Fichier .env.production** affiche le badge **Enregistré** ou **Aucun fichier enregistré**, la **Version** et les **Clés enregistrées**.
+</Step>
+<Step title="Exportez avant de modifier">
+Cliquez sur **Exporter le fichier** pour télécharger le contenu actuel en clair dans `.env.production`. Si le coffre est vide, le panneau affiche **Le fichier ne contient aucune variable.**
+</Step>
+<Step title="Importez le nouveau fichier">
+Cliquez sur **Importer**, choisissez votre fichier `.env.production`, puis confirmez. Le dialogue **Importer les variables de production ?** précise **Ce fichier remplacera le contenu du coffre. Les variables absentes du fichier seront retirées, à l'exception des variables gérées par Nimbus. L'application redémarrera.** Cliquez sur **Confirmer l'import** pour appliquer ou sur **Annuler** pour revenir en arrière. En cas de succès, le panneau affiche **Fichier importé et variables de production mises à jour.**
+</Step>
+<Step title="Resynchronisez si besoin">
+Si l'application ne reflète plus le coffre, cliquez sur **Resynchroniser**. Le dialogue **Resynchroniser les variables de production ?** précise **Les variables enregistrées dans le coffre seront appliquées à l'application. Les autres variables seront retirées, à l'exception des variables gérées par Nimbus. L'application redémarrera.** Cliquez sur **Confirmer la resynchronisation**. En cas de succès, le panneau affiche **Variables de production resynchronisées.**
+</Step>
+<Step title="Actualisez l'état">
+Cliquez sur **Actualiser** pour relire la version et les clés après chaque opération. Si la lecture échoue, cliquez sur **Réessayer**.
+</Step>
+</Steps>
+
+<Warning>Le fichier exporté contient vos secrets en clair. Ne le commitez jamais et excluez-le de Git.</Warning>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Vérifiez l'état">
+```sh
+nimbus prod-vault status 123
+```
+La commande renvoie la version, la date et la liste des clés enregistrées. `123` est l'identifiant du projet. La commande n'affiche jamais les valeurs des secrets.
+</Step>
+<Step title="Exportez le fichier actuel">
+```sh
+nimbus prod-vault export 123 --output ./.env.production --force
+```
+La commande écrit le contenu actuel dans `./.env.production` et n'affiche rien dans le terminal. `--force` autorise le remplacement du fichier s'il existe déjà. Ajoutez-y les variables existantes à conserver avant votre premier import.
+</Step>
+<Step title="Importez le nouveau fichier">
+```sh
+nimbus prod-vault import 123 --dotenv-file ./.env.production --expected-version 0 --yes
+```
+La commande remplace tout le contenu du coffre et applique aussitôt le résultat à l'application. `--dotenv-file` désigne le fichier à envoyer et `--expected-version` désigne la version lue avec `status`. `--yes` confirme le remplacement, qui est irréversible. L'application redémarrera.
+</Step>
+<Step title="Resynchronisez">
+```sh
+nimbus prod-vault resync 123
+```
+La commande réapplique le contenu du coffre à l'application sans toucher au fichier enregistré. Utilisez-la quand le runtime semble désynchronisé. L'application redémarrera.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le badge passe à **Enregistré** et la **Version** augmente après un import, avec **Fichier importé et variables de production mises à jour.** Après une resynchronisation, vous lisez **Variables de production resynchronisées.**
+- Après un export, le panneau affiche **Téléchargement du fichier .env.production lancé.** et le fichier local contient vos variables en clair.
+- En CLI, `nimbus prod-vault status 123` liste les clés attendues. Aucune commande n'affiche jamais les valeurs à l'écran : l'export écrit uniquement un fichier.
+
+## Limites
+
+- Le fichier suit le même format que le coffre de développement : texte UTF-8, une variable par ligne, 64 Kio maximum, avec contrôle optimiste par `expected_version` et conflit 409 si le coffre a changé entre-temps. Voir la page du coffre de développement pour la description complète.
+- L'import remplace l'ensemble du coffre et retire du runtime les variables absentes du fichier. Cette opération est irréversible. Seules les variables gérées par Nimbus sont préservées automatiquement.
+- Les variables `DB_*` et `DATABASE_URL` posées par PostgreSQL géré sont préservées lors de l'import et de la resynchronisation. Ne les supprimez pas de votre fichier si l'application utilise la base gérée.
+- Les clés `OIDC_*` sont refusées à l'import car elles sont réservées à l'identité de l'application gérée par Nimbus.
+- Le coffre de production n'existe que pour un service déployé sur une cible non edge.
+- Sans rôle propriétaire, membre ou administrateur, vous ne pouvez ni lire ni écrire. Les superviseurs n'y ont jamais accès.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « Le fichier dépasse la taille maximale autorisée. » dans l'interface, « le fichier .env dépasse 64 Kio » en CLI (413) | Fichier trop volumineux | Réduisez le fichier sous 64 Kio, puis recommencez |
+| « Impossible de lire le fichier en UTF-8. » dans l'interface, « fichier .env invalide : texte UTF-8 sans caractère nul attendu » en CLI (400) | Encodage incorrect ou contenu binaire | Enregistrez le fichier en UTF-8 sans BOM, supprimez les caractères spéciaux, puis recommencez |
+| « Le fichier contient un caractère nul. » dans l'interface | Contenu binaire | Rouvrez le fichier en texte brut, supprimez les caractères spéciaux, recommencez |
+| « nom de variable invalide : A-Z, 0-9 et _ uniquement » (400) | Nom de variable avec minuscules, tirets ou espaces | Renommez la variable en majuscules, chiffres et soulignés, puis recommencez |
+| « valeur de variable invalide : texte UTF-8 non vide sur une seule ligne attendu » (400) | Valeur vide ou sur plusieurs lignes | Mettez chaque valeur sur une seule ligne non vide, puis recommencez |
+| « variable gérée par Nimbus pour l'identité de l'application : utilisez les routes /identity » (400) | Le fichier contient une clé `OIDC_*` réservée | Retirez les clés `OIDC_*` du fichier, puis recommencez |
+| « le coffre a été modifié ; rechargez avant de remplacer le fichier » (409) | Import concurrent entre votre lecture et votre écriture | Relisez avec **Actualiser** ou `nimbus prod-vault status 123`, puis recommencez avec la nouvelle version |
+| « Aucun fichier .env enregistré. Actualisez le coffre avant de réessayer. » dans l'interface, « aucun fichier .env enregistré » en CLI (404) | Coffre encore vide | Importez un premier fichier complet, en incluant les variables existantes à conserver |
+| « Le fichier a été enregistré dans le coffre. Utilisez « Resynchroniser » pour terminer la mise à jour de l'application. » dans l'interface, « mise à jour Kubernetes échouée » en CLI (502) | Coffre enregistré mais runtime non mis à jour | Cliquez sur **Resynchroniser** ou lancez `nimbus prod-vault resync 123` |
+
+## Pour un agent
+
+1. Demandez l'identifiant du projet et le chemin du fichier `.env.production`. Vérifiez avec `nimbus prod-vault status 123` que le service est déployé sur une cible non edge. Ne lisez que les clés, jamais les valeurs.
+2. Exportez avec `nimbus prod-vault export 123 --output ./.env.production --force` avant tout import, et demandez à l'utilisateur quelles variables existantes doivent être conservées.
+3. Demandez l'accord explicite avant `import` et avant `resync` : chaque opération redémarre l'application et l'import retire les variables absentes. Constatez ensuite avec `status` que les clés correspondent au fichier importé.
+
+## Voir aussi
+
+- [Variables d'environnement](/plateforme/variables)
+- [Coffre de développement](/plateforme/coffre-developpement)
+- [PostgreSQL géré](/plateforme/postgresql)

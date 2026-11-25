@@ -1,0 +1,99 @@
+---
+title: "Se connecter à Nimbus"
+description: "Connectez-vous à Nimbus depuis le navigateur ou la CLI, comprenez la session de 24 h et déconnectez-vous."
+keywords: ["connexion", "login", "session", "keycloak", "déconnexion", "24 h"]
+---
+
+## En bref
+
+Vous vous connectez avec votre compte habituel depuis le navigateur, et votre session reste valide 24 heures. La CLI utilise le même compte via une validation dans le navigateur.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Bouton **Se connecter** (barre de navigation) | `nimbus auth login` | Tout compte autorisé | Immédiat | Oui, avec **Déconnexion** ou `nimbus auth logout` |
+
+## Avant de commencer
+
+Vous avez besoin d'un compte autorisé sur Nimbus. Si la page de connexion répond que votre compte n'est pas autorisé, contactez l'équipe Nimbus au lieu d'insister.
+
+Vérifiez aussi que vous ouvrez la bonne adresse : l'interface de production est `https://cnp.2morgan.fun`.
+
+## Se connecter
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez Nimbus">
+Rendez-vous sur `https://cnp.2morgan.fun` dans votre navigateur. La page d'accueil affiche un bouton **Se connecter** en haut à droite.
+</Step>
+<Step title="Cliquez sur Se connecter">
+Cliquez sur **Se connecter**. Le navigateur vous envoie vers la page de connexion, où vous saisissez vos identifiants habituels.
+</Step>
+<Step title="Arrivez sur vos projets">
+Après validation, vous revenez automatiquement sur la page **Mes projets**. Votre nom apparaît en haut à droite, à côté du bouton **Déconnexion**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Lancez la connexion">
+```sh
+nimbus auth login
+```
+La commande affiche un lien à ouvrir dans votre navigateur, avec un code déjà pré-rempli. Si le navigateur ne s'ouvre pas seul, copiez le lien à la main.
+</Step>
+<Step title="Validez dans le navigateur">
+Ouvrez le lien, vérifiez que le code affiché correspond à celui du terminal, puis validez. Revenez ensuite dans le terminal : la commande affiche `Connecté : <UTILISATEUR> (<API>)`.
+</Step>
+<Step title="Vérifiez la session">
+```sh
+nimbus auth whoami
+```
+La commande affiche votre nom, votre identifiant et vos rôles. Si elle échoue, relancez `nimbus auth login`.
+</Step>
+</Steps>
+
+La procédure complète, avec le jeton fourni par un opérateur et les options avancées, est sur [se connecter en CLI](/cli/connexion).
+
+</Tab>
+</Tabs>
+
+## Combien de temps reste-t-on connecté ?
+
+Votre session dure 24 heures fixes, côté navigateur comme côté CLI. Passé ce délai, reconnectez-vous : relancez la connexion navigateur ou `nimbus auth login`.
+
+Dans le navigateur, fermer l'onglet termine aussi la session visible : au prochain rechargement, Nimbus vous renvoie vers la page d'accueil. La CLI, elle, conserve sa session locale jusqu'à expiration ou déconnexion explicite.
+
+## Se déconnecter
+
+Dans l'interface, cliquez sur **Déconnexion** en haut à droite, à côté de votre nom. Aucune confirmation n'est demandée et aucun message ne s'affiche : vous revenez simplement à la page d'accueil.
+
+Dans le terminal, lancez :
+
+```sh
+nimbus auth logout
+```
+
+La commande efface la session locale et affiche `Session locale effacée pour <API>`. Dans les deux cas, la déconnexion est locale : le jeton reste techniquement valide côté serveur jusqu'à la fin de ses 24 heures, mais personne ne peut le réutiliser sans accès à votre machine.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Votre compte n’est pas autorisé sur Nimbus.` | Votre compte n'a pas accès à la plateforme | Contactez l'équipe Nimbus |
+| `Connexion impossible pour le moment.` | La configuration de connexion est absente | Réessayez plus tard, puis contactez l'équipe Nimbus |
+| `La connexion n’a pas pu être validée. Veuillez recommencer depuis l’accueil.` | Retour de connexion incomplet ou périmé | Recommencez depuis la page d'accueil, dans le même onglet |
+| `La connexion est temporairement indisponible. Veuillez réessayer dans quelques instants.` | Le service de connexion ne répond pas | Attendez quelques minutes puis réessayez |
+
+## Pour un agent
+
+Demandez à l'utilisateur s'il préfère la connexion navigateur ou un jeton fourni par un opérateur, puis suivez [se connecter en CLI](/cli/connexion). Vérifiez toujours le résultat avec `nimbus auth whoami` avant de continuer, et ne demandez jamais à l'utilisateur de coller un jeton dans un chat.
+
+## Voir aussi
+
+- [Créer le jeton GitLab](/demarrer/gitlab)
+- [Les notions](/demarrer/notions)
+- [Se connecter en CLI](/cli/connexion)

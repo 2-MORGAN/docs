@@ -1,0 +1,110 @@
+---
+title: "Partager le fichier .env de développement"
+description: "Partagez le fichier .env local de votre projet Nimbus : téléchargez, importez et vérifiez le coffre de développement."
+keywords: ["coffre développement", ".env", "secrets développement", "partager env", "nimbus env"]
+---
+
+## En bref
+
+Utilisez ce coffre quand vous voulez partager le fichier `.env` utilisé pour développer ce projet en local. Si vous voulez modifier le comportement de l'application déployée variable par variable, utilisez la page Variables. Si vous voulez modifier en bloc les secrets lus par l'application déployée, utilisez le coffre de production.
+
+Un changement enregistré ici prend effet au prochain téléchargement (`pull`) par un membre du projet. Il ne modifie jamais l'application déployée.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Groupe **Projet**, élément **Coffre de développement**, ou groupe **Configuration**, élément **Coffre de développement** si le projet est déployé | `nimbus env status`, `nimbus env pull`, `nimbus env push` | Propriétaires, membres et administrateurs (`ManageEnv`) ; superviseurs jamais | Au prochain téléchargement du fichier par un membre | Non : chaque `push` remplace tout le fichier et l'ancien contenu est perdu |
+
+## Avant de commencer
+
+- Vous connaissez l'identifiant du projet (`123` dans les exemples). Vous le trouvez dans l'URL du projet ou avec la liste de vos projets.
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous avez un rôle autorisé : propriétaire, membre ou administrateur du projet. Sans ce rôle, le panneau affiche **Accès au coffre restreint**.
+- Vous savez où se trouve votre fichier `.env` local et vous l'avez exclu de Git.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau">
+Dans le menu du projet, ouvrez le groupe **Projet** puis cliquez sur **Coffre de développement**. Si le projet est déjà déployé, ouvrez le groupe **Configuration** puis cliquez sur **Coffre de développement**. Le panneau affiche **Secrets de développement de `{projectName}`** avec la phrase **Partagez le fichier .env utilisé pour développer ce projet en local.** et le badge **Développement**.
+</Step>
+<Step title="Téléchargez le fichier">
+Cliquez sur **Télécharger le .env** pour récupérer le fichier sur votre poste. Le bouton est désactivé si le panneau affiche **État: Aucun fichier enregistré**. Après un import, l'état devient **État: Fichier enregistré** avec **Version: `{version}`**. Le contenu du coffre n'est jamais affiché à l'écran.
+</Step>
+<Step title="Importez un nouveau fichier">
+Cliquez sur **Enregistrer le fichier** après avoir choisi votre fichier local. Si aucun fichier n'est enregistré, le libellé est **Importer un fichier .env**. Si un fichier est déjà enregistré, le libellé est **Remplacer le fichier .env** et un dialogue **Remplacer le fichier de développement ?** s'affiche. Il précise que le nouveau fichier remplacera la version `{version}` pour les prochains téléchargements des membres du projet. Cliquez sur **Remplacer** pour confirmer ou sur **Annuler** pour revenir en arrière.
+</Step>
+<Step title="Actualisez en cas de doute">
+Cliquez sur **Actualiser** pour relire l'état du coffre, par exemple après un import effectué par un collègue. En cas d'échec de lecture, cliquez sur **Réessayer**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Vérifiez l'état">
+```sh
+nimbus env status 123
+```
+La commande renvoie les métadonnées du coffre : fichier enregistré ou non, version et date. `123` est l'identifiant du projet. La commande n'affiche jamais le contenu du fichier.
+</Step>
+<Step title="Téléchargez le fichier">
+```sh
+nimbus env pull 123 --output .env --force
+```
+La commande écrit le fichier `.env` dans votre dossier courant. L'option `--output` fixe la destination et `--force` autorise le remplacement du fichier local. Sans `--force`, la commande refuse d'écraser un fichier existant.
+</Step>
+<Step title="Remplacez le fichier">
+```sh
+nimbus env push 123 --dotenv-file ./.env --expected-version 0 --yes
+```
+La commande remplace tout le contenu du coffre par votre fichier local. `--dotenv-file` désigne le fichier à envoyer et `--expected-version` désigne la version lue avec `status`. `--yes` confirme le remplacement, qui est irréversible. Si un collègue a importé entre-temps, vous recevez un conflit et vous devez relire la version avant de recommencer.
+</Step>
+</Steps>
+
+<Warning>Le fichier `.env` contient vos secrets en clair. Ne l'affichez jamais dans un chat et excluez-le de Git avec `.gitignore`.</Warning>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau affiche **État: Fichier enregistré** et **Version: `{version}`** après un import réussi, avec le message **Le fichier de développement a été enregistré.**
+- Après un téléchargement, le panneau affiche **Le téléchargement du .env a été lancé.**
+- En CLI, `nimbus env status 123` affiche `configured: true` et la nouvelle version. Le fichier local récupéré par `pull` correspond à votre dernier import.
+- Le contenu du coffre n'apparaît jamais à l'écran, ni dans l'interface ni dans le terminal.
+
+## Limites
+
+- Format de référence du fichier : texte UTF-8 sans caractère nul, une variable par ligne sous la forme `NOM=valeur`, 64 Kio maximum. Écrivez les noms en majuscules, chiffres et soulignés : ce format est exigé en production. Chaque écriture exige `expected_version` : si la version a changé entre votre lecture et votre écriture, le serveur répond 409 et vous devez recharger le coffre avant de recommencer.
+- Le `push` remplace le fichier entier et cette opération est irréversible. Il n'existe pas de fusion ligne par ligne : les variables absentes de votre fichier sont perdues pour les prochains téléchargements.
+- Le coffre de développement ne touche jamais l'application déployée, même si le projet est déployé. Pour modifier le runtime, utilisez la page Variables ou le coffre de production.
+- Sans rôle propriétaire, membre ou administrateur, vous voyez **Accès au coffre restreint** et vous ne pouvez ni lire ni écrire. Les superviseurs n'y ont jamais accès.
+- Le fichier téléchargé contient les secrets en clair. Conservez-le dans le projet local et excluez-le de Git avec `.gitignore`.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « Le fichier .env dépasse 64 Kio. » dans l'interface, « le fichier .env dépasse 64 Kio » en CLI (413) | Fichier trop volumineux | Réduisez le fichier sous 64 Kio, puis recommencez |
+| « Le fichier contient un caractère nul. » ou « Fichier UTF-8 invalide. » dans l'interface, « fichier .env invalide : texte UTF-8 sans caractère nul attendu » en CLI (400) | Contenu binaire ou encodage incorrect | Enregistrez le fichier en texte brut UTF-8 sans BOM, supprimez les caractères spéciaux, puis recommencez |
+| « le coffre a été modifié ; rechargez avant de remplacer le fichier » (409) | Un collègue a importé entre votre lecture et votre écriture | Relisez avec **Actualiser** ou `nimbus env status 123`, puis recommencez avec la nouvelle version |
+| « aucun fichier .env enregistré » (404) | Coffre encore vide | Importez un premier fichier avec **Importer un fichier .env** ou `push` |
+| « Coffre indisponible. » dans l'interface, « coffre de développement indisponible » en CLI (503) | Coffre non configuré ou erreur temporaire | Cliquez sur **Réessayer**, vérifiez votre connexion, puis contactez l'équipe Nimbus si le problème persiste |
+
+## Pour un agent
+
+1. Demandez l'identifiant du projet et le chemin du fichier `.env` local. Attendez ici la réponse.
+2. Lisez l'état avec `nimbus env status 123` et notez uniquement la version. Ne demandez jamais le contenu du coffre.
+3. Pour télécharger, lancez `nimbus env pull 123 --output .env --force` après accord explicite si un `.env` local existe déjà.
+4. Pour publier, demandez l'accord explicite : le `push` remplace tout et il est irréversible. Lancez ensuite `nimbus env push 123 --dotenv-file ./.env --expected-version 0 --yes` avec la version lue à l'étape 2.
+5. Constatez avec `status` que la version a augmenté. Ne collez jamais le contenu du fichier dans un chat ou un journal.
+
+## Voir aussi
+
+- [Variables d'environnement](/plateforme/variables)
+- [Coffre de production](/plateforme/coffre-production)
+- [Rôles et droits](/plateforme/roles)

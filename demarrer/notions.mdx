@@ -1,0 +1,55 @@
+---
+title: "Les notions : projet, cible, pipeline, coffre, rôles"
+description: "Le vocabulaire Nimbus expliqué sans jargon : projet, application, cible, pipeline, coffre, PAT et rôles."
+keywords: ["notions", "glossaire", "projet", "application", "cible", "pipeline", "coffre", "PAT", "rôles"]
+---
+
+## Le vocabulaire en bref
+
+Sept mots suffisent pour lire toute la documentation. Chacun est expliqué ci-dessous en langage courant, avec un lien vers sa page de référence quand vous voulez aller plus loin.
+
+## Projet et application
+
+Dans Nimbus, un projet et une application désignent la même chose : un service lié à un dépôt GitLab source. L'interface parle de projet dans les listes et de service dans certaines commandes, mais il s'agit toujours de votre code relié à un dépôt.
+
+Retenez ceci : une application Nimbus porte un seul numéro, l'identifiant du projet GitLab. Vous le voyez dans l'adresse de sa fiche et vous le passez aux commandes de la CLI, en premier argument ou avec l'option `--repository-id`. Seul l'identifiant du groupe où créer un dépôt est un autre nombre. Dans les exemples de cette documentation, le projet est `123` et le groupe est `12`.
+
+Retenez ceci : une application Nimbus est toujours liée à un dépôt GitLab. Quand vous déployez, Nimbus écrit les fichiers de déploiement sur une branche dédiée et la plateforme les applique automatiquement. Pour créer votre premier projet, suivez [votre première application](/demarrer/premiere-application).
+
+## Cible de déploiement
+
+La cible est l'endroit où votre application tourne. Nimbus propose des cibles partagées et vos propres serveurs. La cible recommandée par défaut s'appelle `On premise` et elle est toujours allumée. Les cibles `Azure` et `Cloudflare (edge)` existent aussi : la première est souvent éteinte, la seconde accueille uniquement les sites statiques.
+
+Vous devez toujours choisir la cible explicitement au moment de déployer. Sans choix de votre part, le serveur applique aujourd'hui un défaut peu fiable, alors ne vous y fiez pas. La référence complète est sur [choisir une cible](/plateforme/cibles).
+
+## Pipeline
+
+Le pipeline est la chaîne automatique qui transforme votre code en application en ligne : il prépare le projet, construit l'image, puis synchronise le déploiement. Vous le voyez avancer dans l'interface pendant un déploiement, avec des états comme `En cours`, `Réussi` ou `Échec`.
+
+Si le pipeline échoue, ne paniquez pas : la page [branches et pipeline](/plateforme/branches-et-pipeline) explique où il en est, et [logs et pannes](/parcours/logs-et-pannes) montre comment diagnostiquer.
+
+## Coffre
+
+Le coffre conserve les secrets que votre application lit depuis un fichier `.env`, sans jamais les afficher à l'écran. Nimbus en propose deux : le coffre de développement partage un fichier `.env` local entre les membres du projet, et le coffre de production conserve les secrets de l'application déployée, exportables en `.env.production`.
+
+Les coffres complètent les variables simples, qui conviennent aux valeurs non sensibles. Pour choisir, lisez [variables et secrets](/parcours/variables-secrets), [le coffre de développement](/plateforme/coffre-developpement) et [le coffre de production](/plateforme/coffre-production).
+
+<Note>L'espace partagé des applications étudiantes n'est pas prévu pour des secrets sensibles. Demandez un espace dédié à un administrateur si votre application manipule des données sensibles.</Note>
+
+## PAT
+
+Le PAT (jeton d'accès personnel) est le mot de passe que Nimbus utilise pour lire vos dépôts GitLab et déclencher vos pipelines. Vous le créez sur `gitlab.cri.epita.fr` avec les scopes `api` et `read_user`, puis vous l'enregistrez dans Nimbus. Sans PAT valide, vos projets restent visibles mais leurs pipelines sont inaccessibles.
+
+La création pas à pas est décrite sur [créer le jeton GitLab](/demarrer/gitlab).
+
+## Rôles
+
+Les rôles disent qui peut faire quoi, à deux niveaux. Au niveau de la plateforme, vous êtes élève (`student`), professeur (`teacher`) ou administrateur (`admin`) : l'administrateur voit tout, le professeur peut en plus rechercher des comptes, et l'élève voit ses propres projets. Au niveau d'un projet, vous êtes propriétaire (`owner`), membre (`member`) ou encadrant (`supervisor`) : le propriétaire configure et supprime, le membre exploite et gère les variables, et l'encadrant consulte.
+
+Les deux matrices complètes et la façon de changer les rôles sont sur [rôles et accès](/plateforme/roles).
+
+## Voir aussi
+
+- [Visite guidée de l'interface](/plateforme/visite-guidee)
+- [Rôles et accès](/plateforme/roles)
+- [Choisir une cible](/plateforme/cibles)

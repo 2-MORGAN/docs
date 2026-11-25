@@ -1,0 +1,99 @@
+---
+title: "Suivre les dépendances et l'analyse de l'image"
+description: "Gardez les dépendances de votre application à jour et vérifiez que son image ne contient pas de vulnérabilité bloquante."
+keywords: ["dépendances", "mise à jour", "vulnérabilités", "analyse de l'image", "CVE", "sécurité", "image"]
+---
+
+## En bref
+
+Deux panneaux veillent sur la fraîcheur et la sécurité de votre code : **Dépendances** signale les mises à jour disponibles, **Analyse de l'image** signale les failles connues dans l'image déployée.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service, **Vue d'ensemble** (**Dépendances**) et **Déploiement** (**Analyse de l'image**) | `nimbus services dependencies`, `nimbus services vulnerabilities` | Tout membre du projet (lecture seule) | Immédiat | Oui, la lecture ne change rien |
+
+## Avant de commencer
+
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous connaissez l'identifiant du service (`<ID>`, par exemple `123`), visible avec `nimbus services list --json`.
+- L'analyse de l'image exige votre jeton GitLab enregistré : sans lui, la plateforme répond `Configurez votre jeton GitLab dans vos paramètres pour consulter l'analyse de l'image.` L'analyse des dépendances lit votre dépôt avec l'identité de la plateforme : votre jeton n'est normalement pas nécessaire. Si le panneau réclame `Configurez un jeton GitLab pour analyser les dépendances.`, enregistrez votre jeton puis cliquez sur **Actualiser**.
+- Vos fichiers de dépendances vivent à la racine du dépôt, sur la branche par défaut (`package.json`, `go.mod`, `requirements.txt`, `pom.xml` ou équivalent selon votre framework).
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Lisez les dépendances">
+Sur la page du service, le panneau **Dépendances** affiche un badge **`{n}` à mettre à jour** avec le nombre de dépendances en retard, classées **Majeure**, **Mineure** ou **Corrective**. Si tout est à jour, vous lisez **Toutes les dépendances sont à jour.** ou **Les dépendances vérifiées sont à jour.** Cliquez sur **Actualiser** pour relancer l'analyse : elle lit vos manifests à la racine et interroge les registres publics, ce qui prend quelques secondes.
+</Step>
+<Step title="Lisez l'analyse de l'image">
+Ouvrez l'onglet **Déploiement**. Le panneau **Analyse de l'image** affiche un statut : **Aucune analyse disponible** avant le premier déploiement compatible, **Analyse en cours** pendant le scan, **Analyse terminée** quand tout va bien, **Déploiement bloqué** quand une faille critique corrigeable interdit la mise en ligne, **Échec de l'analyse** quand le scanner a échoué, ou **Rapport indisponible** quand le rapport a expiré. Les compteurs du panneau classent les failles en **Critiques**, **Élevées**, **Moyennes**, **Faibles** et **Inconnues** ; le tableau détaille les failles critiques et élevées, les plus bloquantes d'abord.
+</Step>
+<Step title="Creusez un résultat">
+Dans **Vue d'ensemble**, cliquez sur **Voir les résultats** pour ouvrir le détail complet dans l'onglet **Déploiement**. Là, cliquez sur **Voir le job GitLab** pour lire le journal brut du scanner dans le pipeline. En cas d'échec, cliquez sur **Réessayer l’analyse**, ou sur **Actualiser l’analyse** pour relire le dernier rapport. Le tableau présente au plus 25 vulnérabilités critiques et élevées : au-delà, le panneau affiche **Liste partielle : …** et les compteurs restent complets. Pour l'exhaustivité, ouvrez le job GitLab.
+</Step>
+</Steps>
+
+<Warning>Un statut **Déploiement bloqué** signifie qu'une vulnérabilité critique avec un correctif disponible a été trouvée dans votre image. Mettez à jour la dépendance concernée et redéployez : tant que la faille est là, la mise en ligne reste interdite.</Warning>
+
+</Tab>
+<Tab title="CLI">
+
+Les dépendances détectées se lisent en une commande, sans option :
+
+```sh
+nimbus services dependencies 123 --json
+```
+
+Elle renvoie les dépendances analysées avec les mises à jour disponibles. Ici, `123` est l'identifiant du service.
+
+L'analyse de l'image se lit de la même façon :
+
+```sh
+nimbus services vulnerabilities 123 --json
+```
+
+Elle renvoie le statut de l'analyse et les vulnérabilités trouvées. Ici, `123` est l'identifiant du service. Seule cette commande exige votre jeton GitLab enregistré : `dependencies` lit le dépôt avec l'identité de la plateforme.
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+Dans l'interface, le panneau **Dépendances** affiche **Toutes les dépendances sont à jour.** et le panneau **Analyse de l'image** affiche **Analyse terminée** sans faille bloquante. En CLI, les deux commandes répondent sans erreur avec leurs listes. Après une mise à jour de dépendance, cliquez sur **Actualiser** (ou relancez la commande) : l'analyse lit le dépôt à chaque fois, jamais un cache périmé.
+
+## Limites
+
+- L'analyse des dépendances lit au plus 300 dépendances, dans des manifests d'au plus 1 Mo à la racine du dépôt, avec un délai de 25 secondes. Un dépôt sans manifest lisible n'affiche pas d'erreur : le panneau l'indique (**Aucun manifeste de dépendances reconnu…**, **Manifestes ignorés**, **Dépendances non vérifiées**). Vérifiez que vos fichiers sont bien à la racine de la branche par défaut.
+- Le tableau de l'image présente au plus 25 vulnérabilités critiques et élevées : au-delà, le panneau l'indique (**Liste partielle : …**) et les compteurs portent sur l'ensemble du rapport. Lisez le job GitLab pour l'exhaustivité.
+- Seule une faille **Critique** avec un correctif disponible bloque le déploiement. Les autres sévérités sont informatives : c'est à vous de décider de les traiter.
+- L'échec du scanner ne bloque jamais le déploiement. Un statut **Échec de l'analyse** signifie « on n'a pas pu vérifier », pas « c'est dangereux » : réessayez l'analyse, mais ne paniquez pas.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `détection des dépendances indisponible` | Le service d'analyse est injoignable | Attendez une minute, cliquez sur **Actualiser**, puis prévenez l'équipe Nimbus si le message persiste |
+| `Configurez un jeton GitLab pour analyser les dépendances.` | La plateforme ne peut pas lire votre dépôt sans jeton | Enregistrez votre jeton GitLab, puis cliquez sur **Actualiser** |
+| `Votre accès au projet ou votre jeton GitLab ne permet pas de consulter l’analyse.` | Votre jeton GitLab manque ou est refusé | Enregistrez un jeton GitLab valide, puis actualisez (**Réessayer l’analyse**, ou **Actualiser l’analyse** si un rapport reste affiché) |
+| `Votre session a expiré. Reconnectez-vous pour consulter l’analyse.` | Session de 24 h terminée | Reconnectez-vous, puis rechargez la page |
+| `L’analyse n’est pas disponible pour ce projet ou cette version de Nimbus.` | Pas d'analyse pour ce projet (premier déploiement, cible incompatible) | Déployez d'abord l'application, puis rouvrez le panneau |
+| `Impossible de consulter l’analyse de l’image. Réessayez dans quelques instants.` | Échec ponctuel de lecture | Attendez et cliquez sur **Actualiser l’analyse** |
+| `impossible de lire l'analyse de l'image dans GitLab` (CLI) | GitLab est injoignable | Réessayez dans quelques minutes |
+
+La liste complète des messages, tous domaines confondus, vit dans la page [Messages d'erreur](/depannage/messages).
+
+## Pour un agent
+
+1. Demandez l'identifiant du service, ou trouvez-le avec `nimbus services list --json`. Attendez ici la réponse si l'utilisateur doit choisir.
+2. Lisez `nimbus services dependencies <ID> --json` et `nimbus services vulnerabilities <ID> --json` avant de recommander une mise à jour : annoncez les versions exactes trouvées, pas des versions devinées.
+3. Ne mettez jamais à jour une dépendance sans l'accord explicite de l'utilisateur : une **Majeure** peut casser l'application, et c'est à l'humain de trancher.
+4. Un **Déploiement bloqué** est prioritaire sur tout le reste : traitez la CVE critique corrigeable avant les mises à jour de confort.
+
+## Voir aussi
+
+- [Comprendre un échec de déploiement](/plateforme/echecs-de-deploiement)
+- [Préparer son dépôt](/plateforme/preparer-son-depot)
+- [Messages d'erreur](/depannage/messages)

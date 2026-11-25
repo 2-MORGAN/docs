@@ -1,0 +1,184 @@
+---
+title: "Ajouter votre serveur (VPS) et y déployer"
+description: "Ajoutez votre serveur VPS, déployez votre appli, retirez-le."
+keywords: ["vps", "serveur", "ajouter un serveur", "cible de déploiement"]
+---
+
+## En bref
+
+Vous rattachez votre serveur à Nimbus, puis vous le choisissez comme cible de déploiement pour vos applications.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Paramètres** > **Mes VPS** | `nimbus vps create`, `nimbus vps list` | Tout utilisateur connecté pour ajouter ; seul le propriétaire du VPS ou un administrateur peut le retirer | La fiche est créée aussitôt ; le serveur devient utilisable quand son état est **Prêt** | Le retrait est définitif ; il est refusé tant que des services ciblent le serveur |
+
+## Avant de commencer
+
+Un VPS est un serveur loué rien que pour vous, avec un accès root. Louez une machine Linux compatible K3s, en x86-64 ou en ARM64, avec environ 1 Go de RAM libre.
+
+- Vérifiez que vous êtes connecté : la commande `nimbus auth whoami` répond sans erreur.
+- Vérifiez l'accès root : la commande `ssh root@` suivi de l'adresse du serveur (notée `<ADRESSE>` dans les exemples, une adresse que vous donne votre hébergeur) vous connecte.
+- Ouvrez les flux réseau suivants : connexions sortantes sur `6443/TCP` et trafic sur `51820/UDP` dans les deux sens.
+- Si le serveur est derrière un NAT, notez son IP publique (notée `<IP_PUBLIQUE>` dans les exemples).
+- Prévoyez de quoi lire du JSON, par exemple `jq` (`jq --version` doit répondre) ou `python3`.
+
+<Note>Si aucun cluster parent n'est configuré dans votre environnement, la création renvoie une erreur 503 et l'ajout est indisponible. Demandez alors à votre administrateur.</Note>
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ajoutez le serveur">
+Dans le menu, cliquez sur **Paramètres**, puis retrouvez la carte **Mes VPS** (elle s'intitule **Tous les VPS** si vous êtes administrateur). Cliquez sur **Ajouter un VPS**. Dans le champ **Nom du VPS**, saisissez un nom, par exemple `mon-serveur` (noté `<NOM_DU_VPS>` dans les exemples). Cliquez sur **Ajouter le VPS**. Le dialogue de rattachement s'ouvre alors, avec le nom que vous avez saisi dans son titre.
+</Step>
+<Step title="Exécutez la commande de rattachement">
+Le dialogue affiche la commande de rattachement et sa date d'**Expiration**. Cliquez sur **Copier la commande**, puis exécutez-la dans un terminal root sur votre VPS avant l'expiration, qui survient une heure après l'émission.
+</Step>
+<Step title="Attendez l'état Prêt">
+La fiche du serveur affiche d'abord **En attente de rattachement**, puis **Prêt** une fois le nœud rattaché. La liste se réactualise automatiquement, et le bouton **Actualiser** force une nouvelle lecture. Seul un serveur à l'état **Prêt** peut être choisi comme cible. Un serveur rattaché mais pas encore disponible affiche **Indisponible**.
+</Step>
+<Step title="Déployez votre application sur le VPS">
+Rendez-vous sur la page **Nouveau projet**. À l'étape **Préparer le projet**, ouvrez le champ **Cible de déploiement** et choisissez votre serveur dans la liste. Cliquez sur **Continuer**, puis terminez avec le bouton **Déployer l’application**.
+</Step>
+<Step title="Déplacez ou retirez le serveur">
+Une application déjà déployée ne se déplace pas toute seule : pour changer sa cible, contactez un administrateur, surtout si l'application utilise PostgreSQL, des volumes ou une URL publique. Pour retirer un serveur vide, cliquez sur **Retirer** sur sa fiche, puis confirmez en cliquant sur **Retirer le VPS** dans le dialogue de confirmation. Si des projets ciblent encore ce VPS, le retrait est bloqué et un dialogue liste les projets concernés. Après le retrait, exécutez `k3s-agent-uninstall.sh` sur le serveur si l'agent K3s y est installé.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Créez la fiche du serveur">
+Lancez la commande suivante, en remplaçant `mon-serveur` par le nom de votre choix. Elle écrit la réponse complète dans le fichier `vps.json`, et non un script :
+
+```sh
+nimbus vps create --label mon-serveur --output vps.json
+```
+
+La réponse contient la fiche sous la clé `.vps` et la commande de rattachement sous la clé `.command`. Extrayez l'identifiant du serveur (noté `<ID_DU_VPS>` dans les exemples) avec la commande suivante, qui affiche l'identifiant :
+
+```sh
+jq -r .vps.id vps.json
+```
+</Step>
+<Step title="Exécutez la commande de rattachement sur le serveur">
+La commande de rattachement commence par `curl -sfL https://get.k3s.io |` et installe l'agent K3s en root. Transmettez-la au serveur avec la commande suivante, qui envoie le script au serveur pour qu'il l'exécute en root :
+
+```sh
+jq -r .command vps.json | ssh root@<ADRESSE> 'sh -s'
+```
+
+Ici, `<ADRESSE>` est l'adresse SSH de votre serveur. En variante manuelle, écrivez le script dans un fichier, copiez-le, puis exécutez-le avec les trois commandes suivantes, qui écrivent, copient et exécutent le script :
+
+```sh
+jq -r .command vps.json > join.sh
+scp join.sh root@<ADRESSE>:/root/join.sh
+ssh root@<ADRESSE> 'sh /root/join.sh'
+```
+
+Supprimez ensuite les fichiers sensibles. Si la commande a expiré (une heure après son émission), régénérez-la avec la commande suivante, qui écrit la nouvelle commande dans `vps.json` :
+
+```sh
+nimbus vps join <ID_DU_VPS> --output vps.json
+```
+</Step>
+<Step title="Adaptez la commande si le serveur est derrière un NAT">
+Si l'adresse intérieure du serveur diffère de son IP publique, ajoutez l'option `--node-external-ip` avec la commande suivante, qui ajoute l'option sans rien afficher :
+
+```sh
+jq -r '.command + " --node-external-ip <IP_PUBLIQUE>"' vps.json | ssh root@<ADRESSE> 'sh -s'
+```
+
+Ici, `<IP_PUBLIQUE>` est l'IP publique du serveur.
+</Step>
+<Step title="Attendez l'état ready">
+Listez vos serveurs avec la commande suivante, qui renvoie vos serveurs au format JSON :
+
+```sh
+nimbus vps list --json
+```
+
+Répétez-la jusqu'à ce que le champ `"status"` vaille `"ready"`. Les autres états possibles sont `"pending"` (en attente de rattachement) et `"not_ready"` (rattaché mais pas encore disponible).
+</Step>
+<Step title="Déployez votre application sur le VPS">
+La cible se choisit avec `--cluster-id` (ou le champ `cluster_id` en JSON). Sans cible explicite, le serveur prend aujourd'hui le défaut `aks`, qui est souvent éteint : renseignez donc toujours l'identifiant de votre VPS. Pour un dépôt existant jamais déployé, trouvez l'identifiant GitLab du dépôt avec `nimbus gitlab repositories --json`, puis lancez la commande suivante, qui attend le pipeline et la synchronisation jusqu'à dix minutes :
+
+```sh
+nimbus services configure --repository-id 123 --cluster-id <ID_DU_VPS>
+```
+
+Ici, `123` est l'identifiant GitLab du dépôt et `<ID_DU_VPS>` l'identifiant du VPS. N'interrompez pas l'attente, ou ajoutez `--timeout 15m` pour allonger le délai. Pour une application nouvelle dans un groupe `12`, lancez la commande suivante, qui crée l'application sans la déployer :
+
+```sh
+nimbus services create --namespace-id 12 --name mon-appli --framework go --cluster-id <ID_DU_VPS>
+```
+
+Ici, l'option `--framework` est obligatoire (par exemple `go`). Poussez ensuite votre code pour déclencher le premier déploiement. Pour déplacer une application déjà déployée vers le VPS, relancez `services configure` avec le nouveau `--cluster-id`, comme dans le premier exemple : elle redéploie l'application sur le VPS. Sans avertissement sur PostgreSQL, les volumes ou l'URL, validez les données avec un administrateur avant de déplacer une application. Vérifiez le résultat avec la commande suivante, où `123` est l'identifiant du service rendu par la commande précédente :
+
+```sh
+nimbus services status 123 --json
+```
+
+Pour retrouver l'URL publique de l'application, utilisez `nimbus services list`, dont le tableau comporte une colonne URL.
+</Step>
+<Step title="Retirez le serveur">
+Retirez le serveur avec la commande suivante, qui révoque sa commande de rattachement et supprime sa fiche :
+
+```sh
+nimbus vps delete <ID_DU_VPS> --yes
+```
+
+L'option `--yes` est obligatoire car la suppression est définitive. La suppression est refusée avec une erreur 409 tant que des services ciblent le serveur : changez d'abord leur cible. Exécutez ensuite `k3s-agent-uninstall.sh` sur le serveur si l'agent K3s y est installé.
+</Step>
+</Steps>
+
+<Warning>La commande de rattachement contient un jeton personnel. Ne l'affichez jamais et ne la collez jamais dans un chat. Supprimez le fichier `vps.json` après usage.</Warning>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La carte **Mes VPS** affiche **Prêt** pour votre serveur, et la commande `nimbus vps list --json` renvoie `"status": "ready"`.
+- Le champ **Cible de déploiement** propose votre serveur ; un serveur non prêt y apparaît grisé avec la mention **Indisponible**.
+- Une fois l'application déployée, sa fiche affiche l'URL publique et le badge **En ligne**.
+
+<Warning>Le propriétaire du serveur peut lire les secrets des applications qui y tournent. N'y déployez que des applications de confiance.</Warning>
+
+## Limites
+
+- Le serveur utilise x86-64 ou ARM64, avec environ 1 Go de RAM libre et un accès root. Il joint Nimbus sur `6443/TCP` en sortie et échange sur `51820/UDP` dans les deux sens. Derrière un NAT, ajoutez `--node-external-ip` à la commande de rattachement.
+- La commande de rattachement expire après une heure. Régénérez-la avec **Générer une commande** ou avec `nimbus vps join`.
+- Le nom saisi est conservé tel quel. Seuls les 30 premiers caractères du nom simplifié servent à fabriquer l'identifiant, qui ressemble à `vps-mon-serveur-a1b2`. En cas de collision, Nimbus réessaie une fois avec un nouvel identifiant, puis renvoie l'erreur 409 `identifiant de VPS déjà utilisé`.
+- Le retrait est définitif et il est refusé tant que des services ciblent le serveur.
+- Nimbus route la compilation automatiquement : un VPS ARM64 utilise le runner ARM64 intégré, un VPS x86-64 utilise les runners partagés. Vous ne préparez aucune image multi-architecture.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « Cette commande a expiré. Générez-en une nouvelle depuis la liste des VPS. » ou « La commande de rattachement est indisponible. » | Commande expirée ou consommée | Régénérez-la avec **Générer une commande** ou `nimbus vps join` |
+| « Le VPS sélectionné est indisponible. Actualisez son état ou choisissez une autre cible. » | Serveur non prêt | Cliquez sur **Actualiser** ou choisissez une autre cible |
+| 403 « cible VPS non autorisée pour ce projet » | Le propriétaire du VPS n'est ni propriétaire ni membre du projet, ou le VPS est inconnu | Déployez dans un projet dont le propriétaire du VPS est membre, ou vérifiez l'identifiant |
+| 409 « des services ciblent encore ce VPS » | Des services utilisent encore ce serveur comme cible | Changez leur cible, puis réessayez |
+| 409 « VPS déjà rattaché » ou « Ce VPS est déjà rattaché. Sa fiche a été actualisée. » | Serveur déjà rattaché | Attendez l'état **Prêt** et cliquez sur **Actualiser** |
+| 404 « VPS introuvable » | Identifiant inconnu ou VPS d'autrui (la réponse ne distingue pas les deux cas) | Vérifiez l'identifiant avec `nimbus vps list --json` |
+| 503 « VPS indisponibles : aucun cluster parent configuré » ou « L’hébergement sur VPS est indisponible dans cet environnement. » | Aucun cluster parent configuré | Demandez à votre administrateur |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur le nom du serveur, son adresse SSH, le dépôt concerné et si le serveur est derrière un NAT. Attendez ici sa réponse.
+2. Lancez `nimbus vps create --label` avec le nom convenu et `--output vps.json`. Lisez uniquement `.vps.id`. N'affichez jamais `.command`.
+3. Demandez l'accord explicite de l'utilisateur avant toute exécution en root. Après son accord, transmettez la commande sans l'afficher. Supprimez ensuite le fichier `vps.json`.
+4. Constatez le rattachement avec `nimbus vps list --json` jusqu'à obtenir `"status": "ready"`.
+5. Déployez en renseignant toujours `--cluster-id` avec l'identifiant du VPS. Constatez le résultat avec `nimbus services status` suivi de l'identifiant du service, et retrouvez l'URL avec `nimbus services list`.
+6. Pour un déplacement ou un retrait, demandez l'accord explicite de l'utilisateur : le déplacement redéploie l'application et les données exigent un administrateur. Ne lisez ni n'affichez jamais le contenu du fichier `vps.json`.
+
+## Voir aussi
+
+- [Ajouter un VPS](/parcours/ajouter-un-vps)
+- [Choisir une cible](/plateforme/cibles)
+- [Supprimer un service](/plateforme/supprimer)

@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "CNP — Cloud Native Platform",
+  "name": "Nimbus",
   "colors": {
     "primary": "#6366f1",
     "light": "#818cf8",
@@ -9,24 +9,166 @@
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": "Démarrage",
-        "pages": [
-          "index",
-          "quickstart"
+        "tab": "Démarrer",
+        "groups": [
+          {
+            "group": "Bien commencer",
+            "pages": [
+              "index",
+              "demarrer/notions",
+              "demarrer/connexion",
+              "demarrer/gitlab",
+              "demarrer/premiere-application"
+            ]
+          },
+          {
+            "group": "Parcours pas à pas",
+            "pages": [
+              "parcours/depot-existant",
+              "parcours/nouveau-depot",
+              "parcours/generation-ia",
+              "parcours/autre-application",
+              "parcours/variables-secrets",
+              "parcours/postgresql",
+              "parcours/exposer-application",
+              "parcours/logs-et-pannes",
+              "parcours/ajouter-un-vps",
+              "parcours/equipe",
+              "parcours/classe"
+            ]
+          },
+          {
+            "group": "Dépannage",
+            "pages": [
+              "depannage/index",
+              "depannage/messages"
+            ]
+          }
         ]
       },
       {
-        "group": "Guides",
-        "pages": [
-          "guides/connexion",
-          "guides/pat-setup",
-          "guides/configure-service",
-          "guides/mon-service",
-          "guides/redeploy",
-          "guides/frameworks",
-          "guides/aide"
+        "tab": "La plateforme",
+        "groups": [
+          {
+            "group": "Se repérer",
+            "pages": [
+              "plateforme/visite-guidee",
+              "plateforme/roles"
+            ]
+          },
+          {
+            "group": "Déployer",
+            "pages": [
+              "plateforme/creer-un-projet",
+              "plateforme/preparer-son-depot",
+              "plateforme/frameworks",
+              "plateforme/generation-ia",
+              "plateforme/modeles",
+              "plateforme/cibles",
+              "plateforme/branches-et-pipeline",
+              "plateforme/apercus"
+            ]
+          },
+          {
+            "group": "Exploiter",
+            "pages": [
+              "plateforme/etats",
+              "plateforme/demarrer-arreter",
+              "plateforme/redeployer",
+              "plateforme/disponibilite",
+              "plateforme/autoscaling",
+              "plateforme/quotas-et-tests-de-charge",
+              "plateforme/supprimer"
+            ]
+          },
+          {
+            "group": "Données et secrets",
+            "pages": [
+              "plateforme/variables",
+              "plateforme/coffre-developpement",
+              "plateforme/coffre-production",
+              "plateforme/postgresql",
+              "plateforme/sauvegardes"
+            ]
+          },
+          {
+            "group": "Réseau et identité",
+            "pages": [
+              "plateforme/url-et-passerelle",
+              "plateforme/cloudflare",
+              "plateforme/identite-application",
+              "plateforme/isolation"
+            ]
+          },
+          {
+            "group": "Observer",
+            "pages": [
+              "plateforme/logs",
+              "plateforme/sante-et-ressources",
+              "plateforme/echecs-de-deploiement",
+              "plateforme/dependances-et-image",
+              "plateforme/alertes-discord"
+            ]
+          },
+          {
+            "group": "Coûts et crédits",
+            "pages": [
+              "plateforme/cout-et-budget",
+              "plateforme/credits",
+              "plateforme/notifications"
+            ]
+          },
+          {
+            "group": "Équipe",
+            "pages": [
+              "plateforme/membres-et-politique",
+              "plateforme/classes"
+            ]
+          },
+          {
+            "group": "Serveurs",
+            "pages": [
+              "plateforme/vps"
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "administration/plateforme",
+              "administration/catalogue",
+              "administration/credits"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI",
+        "groups": [
+          {
+            "group": "Nimbus CLI",
+            "pages": [
+              "cli/installation",
+              "cli/connexion",
+              "cli/conventions",
+              "cli/commandes",
+              "cli/interface-ou-cli"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Pour les agents",
+        "groups": [
+          {
+            "group": "Agents IA",
+            "pages": [
+              "agents/index",
+              "agents/regles",
+              "agents/recettes"
+            ]
+          }
         ]
       }
     ]
@@ -38,27 +180,101 @@
   "navbar": {
     "links": [
       {
-        "href": "https://github.com/amielfabreguettes/cnp-2morgan",
-        "label": "GitHub"
+        "href": "https://cnp.2morgan.fun",
+        "label": "Ouvrir Nimbus"
       }
     ]
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/amielfabreguettes/cnp-2morgan"
+      "github": "https://github.com/2-MORGAN"
     }
   },
-  "description": "Plateforme cloud-native qui automatise le scaffolding, la CI/CD et le déploiement de services GitLab sur Kubernetes."
+  "description": "Documentation de Nimbus : déployer, exploiter et superviser vos applications depuis l'interface web ou la CLI.",
+  "redirects": [
+    {
+      "source": "/quickstart",
+      "destination": "/demarrer/premiere-application"
+    },
+    {
+      "source": "/guides/connexion",
+      "destination": "/demarrer/connexion"
+    },
+    {
+      "source": "/guides/pat-setup",
+      "destination": "/demarrer/gitlab"
+    },
+    {
+      "source": "/guides/configure-service",
+      "destination": "/parcours/depot-existant"
+    },
+    {
+      "source": "/guides/mon-service",
+      "destination": "/plateforme/etats"
+    },
+    {
+      "source": "/guides/redeploy",
+      "destination": "/plateforme/redeployer"
+    },
+    {
+      "source": "/guides/frameworks",
+      "destination": "/plateforme/frameworks"
+    },
+    {
+      "source": "/guides/aide",
+      "destination": "/depannage/index"
+    },
+    {
+      "source": "/architecture",
+      "destination": "/demarrer/notions"
+    },
+    {
+      "source": "/concepts/services",
+      "destination": "/demarrer/notions"
+    },
+    {
+      "source": "/concepts/cicd",
+      "destination": "/plateforme/branches-et-pipeline"
+    },
+    {
+      "source": "/concepts/argocd",
+      "destination": "/plateforme/branches-et-pipeline"
+    },
+    {
+      "source": "/concepts/frameworks",
+      "destination": "/plateforme/frameworks"
+    },
+    {
+      "source": "/deployment/configuration",
+      "destination": "/plateforme/variables"
+    },
+    {
+      "source": "/deployment/infrastructure",
+      "destination": "/plateforme/cibles"
+    },
+    {
+      "source": "/api-reference/authentication",
+      "destination": "/cli/connexion"
+    },
+    {
+      "source": "/api-reference/gitlab",
+      "destination": "/demarrer/gitlab"
+    },
+    {
+      "source": "/api-reference/services",
+      "destination": "/cli/interface-ou-cli"
+    }
+  ]
 }

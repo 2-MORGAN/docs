@@ -1,0 +1,159 @@
+---
+title: "Gérer les classes et les inscriptions"
+description: "Créez des classes, importez des élèves en CSV et inscrivez-les aux projets via les classes."
+keywords: ["classe", "inscriptions", "import CSV", "élèves", "compte lié", "en attente"]
+---
+
+## En bref
+
+Vous regroupez les comptes en classes, puis vous partagez vos projets avec ces classes au lieu d'ajouter chaque élève un par un.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Classes et accès** (`/dashboard/classes`), détail `/dashboard/classes/:id` | `nimbus classes list`, `nimbus classes create`, `nimbus classes import`, `nimbus classes delete`, `nimbus classes members list`, `nimbus classes members add`, `nimbus classes members remove` | Administrateurs ; en CLI, les enseignants membres listent les inscrits | Immédiat, copie vers GitLab en quelques minutes | Non pour la suppression, qui retire aussi les accès aux projets |
+
+## Avant de commencer
+
+- Vérifiez votre rôle avec `nimbus auth whoami`. La gestion des classes exige le rôle administrateur.
+- Préparez le fichier CSV `classes.csv` au format exact `email,nom,classe` (1 Mo au plus).
+- Retrouvez l'identifiant d'une classe avec `nimbus classes list` (`7` dans les exemples).
+- Pour inscrire quelqu'un qui ne s'est jamais connecté, utilisez son adresse e-mail (badge **En attente** jusqu'à sa première connexion).
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez les classes">
+Cliquez sur **Classes et accès** pour afficher le tableau (**Classe**, **Inscrits**, **GitLab**, **Actions**). Sans le rôle administrateur, vous êtes redirigé vers `/dashboard`.
+</Step>
+<Step title="Créez une classe">
+Dans **Créer une classe**, saisissez le nom (par exemple `Babbage`) et cliquez sur **Créer la classe**.
+</Step>
+<Step title="Importez un CSV">
+Dans **Importer les inscriptions**, choisissez le fichier (**Fichier CSV**), cliquez sur **Importer le CSV**, puis lisez le bilan.
+</Step>
+<Step title="Consultez les inscrits">
+Cliquez sur une classe pour ouvrir son détail (**Personne**, **Compte**, **Actions** ; **Compte lié** ou **En attente**).
+</Step>
+<Step title="Inscrivez une personne">
+Choisissez **Par e-mail** ou **Compte Nimbus existant**. Saisissez l'**Adresse e-mail** puis le **Nom affiché**, ou le **Compte Nimbus**. Cliquez sur **Inscrire**.
+</Step>
+<Step title="Retirez une personne">
+Cliquez sur **Retirer** en face de la personne, puis confirmez : elle perd les accès hérités de la classe et garde ses accès individuels.
+</Step>
+<Step title="Supprimez une classe">
+Cliquez sur **Supprimer** en face du nom, puis confirmez : inscriptions et accès aux projets sont supprimés avec elle.
+</Step>
+<Step title="Suivez la copie vers GitLab">
+Sur la page **Administration**, ouvrez le panneau **Copie dans GitLab** et cliquez sur **Synchroniser maintenant**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les classes">
+```sh
+nimbus classes list
+```
+Cette commande affiche les classes et leur nombre d'inscrits (toutes les classes pour les administrateurs).
+</Step>
+<Step title="Créez une classe">
+```sh
+nimbus classes create --name promo-2026
+```
+`--name` attend le nom de la classe, ici `promo-2026`.
+</Step>
+<Step title="Importez un fichier CSV">
+```sh
+nimbus classes import --input classes.csv
+```
+`--input` attend le chemin du fichier au format `email,nom,classe`.
+</Step>
+<Step title="Listez les inscrits">
+```sh
+nimbus classes members list 7
+```
+Cette commande affiche les inscrits de la classe `7`.
+</Step>
+<Step title="Inscrivez des personnes">
+```sh
+nimbus classes members add 7 --usernames alice,brahim
+```
+`--usernames` attend des noms de comptes Nimbus séparés par des virgules (ici `alice` et `brahim`). Pour des e-mails, passez un fichier `--input` au format `{"members": [{"email": "...", "display_name": "..."}]}`.
+</Step>
+<Step title="Retirez une personne">
+```sh
+nimbus classes members remove 7 <MEMBRE> --yes
+```
+`<MEMBRE>` est l'identifiant affiché par `members list` ; `--yes` confirme sans dialogue.
+</Step>
+<Step title="Retrouvez un compte">
+```sh
+nimbus users search --query alice
+```
+`--query` attend le début d'un nom ou d'un e-mail. La recherche affiche vingt résultats au plus, uniquement des comptes déjà connectés (enseignants et administrateurs uniquement).
+</Step>
+<Step title="Supprimez une classe">
+```sh
+nimbus classes delete 7 --yes
+```
+Cette commande supprime la classe `7` avec ses inscriptions et ses accès aux projets, sans annulation possible.
+</Step>
+<Step title="Copie vers GitLab">
+```sh
+nimbus admin gitlab-tree get
+```
+Cette commande affiche l'état de la copie dans GitLab ; forcez la synchronisation avec `nimbus admin gitlab-tree sync`.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le bilan indique `created_classes`, `added`, `already_present`, `pending` (première connexion en attente) et `invalid` (lignes rejetées).
+- Chaque inscrit porte le badge **Compte lié** ou **En attente**, comme dans `nimbus classes members list 7`.
+
+## Limites
+
+- Votre CSV utilise exactement les colonnes `email,nom,classe` (exemple : `eleve@epita.fr,Prénom Nom,Babbage`) et pèse 1 Mo au plus, sinon l'import est refusé avant tout envoi.
+- La première ligne est ignorée si sa première cellule vaut `email`, sans tenir compte de la casse ni des espaces.
+- Les lignes invalides sont signalées dans le bilan sans bloquer les autres : chaque ligne exige trois champs avec une classe non vide, et un e-mail de la forme `nom@domaine.fr`.
+- Création, suppression, import et inscriptions exigent le rôle administrateur. En CLI, les enseignants membres de la classe (ou d'un de ses cours) consultent aussi les inscrits. Supprimer une classe retire aussi ses inscriptions et ses accès aux projets, sans annulation possible.
+- Les anciennes pages `/dashboard/courses` redirigent vers `/dashboard` et il n'existe aucune commande `courses`. La copie vers GitLab se pilote avec `nimbus admin gitlab-tree get` et `nimbus admin gitlab-tree sync`.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « name requis » (400) | Nom manquant | Relancez avec `--name` renseigné |
+| « une classe porte déjà ce nom » (409) | Classe existante | Réutilisez-la ou choisissez un autre nom |
+| « la classe est utilisée par un cours » (409) | Classe rattachée à un cours | Demandez sa libération à l'équipe Nimbus |
+| « classe introuvable » (404) | Identifiant `7` inconnu | Relisez la liste avec `nimbus classes list` |
+| « Le fichier dépasse la limite de 1 Mo. » (interface) | CSV trop lourd | Découpez le fichier en imports de moins de 1 Mo |
+| « CSV invalide : … » (400) | Fichier illisible | Vérifiez les virgules comme séparateurs |
+| « colonnes attendues : email,nom,classe » (bilan) | Ligne incomplète | Fournissez les trois champs avec une classe non vide |
+| « adresse e-mail invalide » (bilan) | E-mail mal formé | Corrigez l'adresse au format `nom@domaine.fr` |
+| « members ou usernames requis » (400) | Aucune personne fournie | Ajoutez `--usernames` ou un fichier `--input` |
+| « compte inconnu : la personne doit s'être connectée une fois à Nimbus » (bilan) | Nom passé à `--usernames` jamais connecté | Inscrivez l'e-mail (badge **En attente**) ou faites connecter la personne |
+| « membre de la classe introuvable » (404) | `<MEMBRE>` inconnu | Relisez les inscrits avec `nimbus classes members list 7` |
+| « accès refusé » (403) | Rôle insuffisant | Demandez à un administrateur d'agir |
+
+## Pour un agent
+
+1. Demandez le nom de la classe et le fichier CSV ou la liste des e-mails, puis attendez la réponse.
+2. Contrôlez le CSV avant l'envoi : trois colonnes `email,nom,classe`, 1 Mo au plus. N'inventez jamais d'adresses.
+3. Lisez le bilan après l'import et signalez les lignes `invalid` avec leur motif. Constatez avec `nimbus classes members list 7`.
+4. Demandez l'accord explicite avant `members remove` et `classes delete`, car le retrait et la suppression ne s'annulent pas.
+5. Pour partager un projet avec la classe, suivez la page des membres et de la politique au lieu de dupliquer ses règles.
+
+## Voir aussi
+
+- [Gérer les membres et la politique d'un projet](/plateforme/membres-et-politique)
+- [Comprendre les rôles](/plateforme/roles)
+- [Administrer la plateforme](/administration/plateforme)

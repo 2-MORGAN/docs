@@ -1,0 +1,119 @@
+---
+title: "Configurer les variables d'environnement d'un service"
+description: "Ajoutez, modifiez et supprimez les variables d'environnement lues par votre application déployée."
+keywords: ["variables d'environnement", "env", "configuration", "redémarrage", "API_URL"]
+---
+
+## En bref
+
+Les variables d'environnement configurent votre application déployée au moment où elle tourne.
+
+Utilisez cette page pour les quelques réglages que votre application lit au démarrage, comme une clé d'API ou une URL. Utilisez le coffre de développement pour partager le fichier `.env` local entre membres du projet, et le coffre de production pour appliquer un fichier `.env.production` complet à l'application déployée.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| `/dashboard/services/123/variables`, section **Configuration** puis **Variables** | `nimbus services env list`, `create`, `set`, `delete` | Lecture : propriétaires, membres, administrateurs et superviseurs. Écriture : propriétaires, membres et administrateurs (projet non gelé), jamais les superviseurs | Redémarrage automatique du déploiement après chaque écriture, sans redéployer | Oui, sauf la suppression qui est définitive |
+
+## Avant de commencer
+
+- Votre service est déjà déployé. Cette page n'existe pas pour un projet en préparation.
+- Vous connaissez l'identifiant du service, visible dans l'URL de sa page. Dans les exemples, `123` désigne cet identifiant.
+- En CLI, vous êtes connecté. Vérifiez avec `nimbus auth whoami`.
+- Vous préparez chaque valeur dans un fichier, par exemple `./url.txt`. La valeur ne passe jamais en argument, car c'est un secret.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez l'onglet Variables">
+Dans la fiche de votre service, ouvrez la section **Configuration**, puis cliquez sur **Variables** pour voir le panneau **Variables d'environnement**.
+</Step>
+<Step title="Ajoutez une variable">
+Saisissez le nom dans le champ `DATABASE_URL`. L'interface le passe en majuscules. Saisissez la valeur dans le champ `Valeur`, affichée comme un mot de passe avec un œil **Afficher la valeur**. Cliquez sur **Ajouter**. Vous voyez le message `{key} ajoutée`, où `{key}` est le nom que vous avez saisi.
+</Step>
+<Step title="Modifiez une variable">
+Sur la ligne voulue, cliquez sur le bouton **Modifier** (icône crayon). Saisissez la nouvelle valeur dans le champ `Nouvelle valeur`. Cliquez sur **Enregistrer** pour appliquer, ou sur **Annuler** pour renoncer. Vous voyez le message `{key} mise à jour`.
+</Step>
+<Step title="Supprimez une variable">
+Sur la ligne voulue, cliquez sur le bouton **Supprimer** (icône corbeille). Le dialogue `Supprimer « {key} » ?` vous rappelle que la variable sera retirée de l'application. Cliquez sur **Supprimer la variable** pour confirmer, ou sur **Annuler** pour renoncer. Vous voyez le message `{key} supprimée`.
+</Step>
+<Step title="Lisez les cas particuliers">
+Une ligne `Gérée par Nimbus · Lecture seule` désigne une variable posée par Nimbus pour l'identité de l'application. Toute tentative affiche `Cette variable est gérée par Nimbus.` Si votre rôle est en lecture seule, vous voyez `Votre rôle permet de consulter les noms des variables, sans les modifier.` Sur un déploiement frontal sans exécution, vous voyez `Intégrez vos variables au build frontend (VITE_*). Cloudflare ne fournit pas de variables d’exécution pour ce déploiement.` Les variables d'exécution ne parviennent jamais au navigateur : chaque valeur est figée dans le JavaScript au moment de `npm run build`. Créez alors un fichier `.env.production` à la racine du dépôt, par exemple avec `VITE_API_URL=https://<URL-DE-VOTRE-API>` où `<URL-DE-VOTRE-API>` est l'adresse publique de votre API, versionnez ce fichier sans y mettre de secret, puis reconstruisez et redéployez.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+Dans les commandes suivantes, `123` est l'identifiant du service et `API_URL` un nom de variable d'exemple. Le fichier `./url.txt` contient la valeur, car la valeur ne passe jamais en argument direct. Les options `--key` et `--value-file` sont obligatoires.
+
+<Steps>
+<Step title="Listez les variables">
+```sh
+nimbus services env list 123 --json
+```
+Elle renvoie la liste des variables au format JSON, avec les noms, les dates et l'indicateur des variables gérées.
+</Step>
+<Step title="Créez une variable">
+```sh
+nimbus services env create 123 --key API_URL --value-file ./url.txt --json
+```
+Elle crée la variable `API_URL` avec le contenu de `./url.txt` et redémarre l'application.
+</Step>
+<Step title="Modifiez une variable">
+```sh
+nimbus services env set 123 API_URL --value-file ./url.txt --json
+```
+Elle remplace la valeur de `API_URL` par le contenu de `./url.txt` et redémarre l'application.
+</Step>
+<Step title="Supprimez une variable">
+```sh
+nimbus services env delete 123 API_URL --yes --json
+```
+Elle supprime définitivement `API_URL` et redémarre l'application. L'option `--yes` confirme la suppression.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Dans l'interface, la liste affiche votre variable avec `Mise à jour le {date}`, ou avec `Gérée par Nimbus · Lecture seule` si Nimbus la gère. Chaque écriture affiche `{key} ajoutée`, `{key} mise à jour` ou `{key} supprimée`.
+- En CLI, `nimbus services env list 123 --json` affiche la variable après un ajout ou une modification, et ne l'affiche plus après une suppression.
+- Votre application redémarre seule après chaque écriture. Vous n'avez pas besoin de la redéployer.
+
+## Limites
+
+- Le nom respecte `^[A-Z0-9_]+$`, donc uniquement des majuscules, des chiffres et des underscores. La valeur ne doit pas être vide.
+- Les quatre variables d'identité `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` et `OIDC_REDIRECT_BASE_URL` sont refusées. Elles appartiennent à l'identité de l'application.
+- Les variables `Gérée par Nimbus · Lecture seule` ne se modifient ni dans l'interface ni en CLI. Nimbus les pose pour l'identité de l'application.
+- Chaque ajout, modification ou suppression redémarre automatiquement le déploiement par un correctif `restartedAt`. Vous ne redéployez pas vous-même.
+- Sur un déploiement frontal sans moteur d'exécution, aucune variable d'exécution n'est fournie. Le message affiché est `Intégrez vos variables au build frontend (VITE_*). Cloudflare ne fournit pas de variables d’exécution pour ce déploiement.` Fournissez chaque valeur dans le fichier `.env.production` versionné à la racine du dépôt, puis reconstruisez : modifier l'environnement après le build ne change pas le JavaScript déjà construit. N'y placez aucun secret, car ces valeurs sont lisibles par tout visiteur du site.
+- La suppression est définitive.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Le nom de variable est requis` | Le champ du nom est vide | Saisissez un nom, par exemple `API_URL` |
+| `Utilise uniquement des majuscules, chiffres et underscores` | Le nom contient des minuscules, des tirets ou des espaces | Renommez avec des majuscules, des chiffres et des underscores |
+| `La valeur est requise` | Le champ de la valeur est vide | Saisissez une valeur, ou corrigez le fichier pointé par `--value-file` |
+| `Cette variable est gérée par Nimbus.` | La clé appartient à l'identité de l'application | Vous ne pouvez pas la modifier ici ; passez par l'identité de l'application |
+| `Votre rôle permet de consulter les noms des variables, sans les modifier.` | Votre rôle est en lecture seule, comme superviseur | Demandez l'écriture à un propriétaire, un membre ou un administrateur |
+| `Intégrez vos variables au build frontend (VITE_*). Cloudflare ne fournit pas de variables d’exécution pour ce déploiement.` | Le déploiement frontal ne fournit pas de variables d'exécution | Écrivez vos valeurs `VITE_*` dans `.env.production` à la racine du dépôt, versionnez le fichier, puis reconstruisez et redéployez |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur l'identifiant du service, le nom voulu et la valeur attendue. Attendez ici la réponse.
+2. Écrivez la valeur dans un fichier local, sans jamais l'afficher ni la coller dans le chat. Utilisez `--value-file` pour toutes les écritures.
+3. Demandez l'accord explicite avant toute suppression, car elle est définitive et redémarre l'application. Constatez ensuite le résultat avec `nimbus services env list 123 --json`, où `123` est l'identifiant du service.
+4. Si l'utilisateur est superviseur, ne tentez aucune écriture. Transmettez la demande à un propriétaire, un membre ou un administrateur.
+
+## Voir aussi
+
+- [Coffre de développement](/plateforme/coffre-developpement)
+- [Coffre de production](/plateforme/coffre-production)
+- [Base PostgreSQL](/plateforme/postgresql)

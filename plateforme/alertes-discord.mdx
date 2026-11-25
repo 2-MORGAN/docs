@@ -1,0 +1,117 @@
+---
+title: "Recevoir les alertes de votre application sur Discord"
+description: "Configurez les alertes Discord de votre application : webhook, test d'envoi, remplacement et suppression."
+keywords: ["alertes Discord", "Discord", "webhook", "notification", "crash", "panne", "test"]
+---
+
+## En bref
+
+Nimbus peut prévenir votre salon Discord quand votre application tombe, redémarre en boucle ou se rétablit. Vous branchez un webhook Discord, vous testez, et les alertes suivent toutes seules.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service, **Paramètres**, panneau **Alertes Discord** | `nimbus services discord-alerts get`, `set`, `test`, `delete` | Lecture : tout membre ; configurer et tester : propriétaires et membres (droit d'opération) | Immédiat, le test envoie un vrai message | Le remplacement et la suppression sont définitifs : l'ancien webhook est perdu |
+
+## Avant de commencer
+
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous connaissez l'identifiant du service (`<ID>`, par exemple `123`), visible avec `nimbus services list --json`.
+- Vous avez créé un webhook dans votre salon Discord et copié son URL. Dans Discord, ouvrez **Paramètres du salon**, puis **Intégrations**, puis **Webhooks**, puis **Nouveau webhook**, puis **Copier l’URL du webhook**. Cette URL est secrète : elle ne sera jamais réaffichée, ni dans l'interface ni en CLI.
+
+<Note>Configurer les alertes exige le droit d'opération sur le projet. Sans lui, vous voyez le panneau en lecture seule et les boutons d'écriture sont absents.</Note>
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau">
+Sur la page du service, ouvrez l'onglet **Paramètres** puis le panneau **Alertes Discord**. S'il n'y a encore rien, vous lisez **Aucun webhook Discord enregistré.**
+</Step>
+<Step title="Enregistrez le webhook">
+Collez l'URL dans le champ **URL du webhook Discord**, puis cliquez sur **Enregistrer**. En cas de succès, vous lisez **Webhook enregistré.** Le panneau affiche alors l'état suivi (**En fonctionnement**, **Redémarrage en boucle**, **Hors service** ou **Arrêtée volontairement**) et les événements surveillés : **Crash**, **Hors service**, **Crash puis redémarrage**, **Rétablissement** et **Message de test**.
+</Step>
+<Step title="Envoyez un test">
+Cliquez sur **Envoyer un test** : un vrai **Message de test** arrive dans votre salon Discord. En cas de succès, vous lisez **Message de test envoyé dans votre salon Discord.** Si le bouton affiche **Réessayer dans `{n}` s**, attendez la fin du compte à rebours : les tests sont limités à un toutes les 10 secondes.
+</Step>
+<Step title="Remplacez ou supprimez">
+Pour changer de salon, cliquez sur **Remplacer**, collez la nouvelle URL et validez : l'ancien webhook est perdu, pensez à le supprimer côté Discord. Pour tout couper, cliquez sur **Supprimer**, puis confirmez dans le dialogue **Supprimer les alertes Discord ?** en cliquant sur **Supprimer les alertes**. Vous lisez alors **Alertes Discord supprimées.** Pour abandonner une saisie en cours, cliquez sur **Annuler**.
+</Step>
+</Steps>
+
+Si le panneau affiche **Ce webhook est désactivé. Enregistrez un nouveau webhook pour reprendre les alertes.**, Discord a rejeté vos messages (webhook supprimé côté Discord, par exemple). Enregistrez un nouveau webhook : réparer l'ancien est impossible.
+
+</Tab>
+<Tab title="CLI">
+
+La configuration se lit en une commande, sans option :
+
+```sh
+nimbus services discord-alerts get 123 --json
+```
+
+Elle affiche l'état du webhook enregistré. Ici, `123` est l'identifiant du service.
+
+Pour enregistrer un webhook, écrivez d'abord l'URL dans un fichier, puis passez le fichier à la commande :
+
+```sh
+nimbus services discord-alerts set 123 --webhook-url-file ./webhook.txt --json
+```
+
+Elle enregistre le webhook et remplace l'ancien, qui est perdu. Ici, `./webhook.txt` est le chemin du fichier contenant uniquement l'URL (`https://discord.com/api/webhooks/<id>/<jeton>`), et `123` l'identifiant du service. L'URL ne passe jamais en argument direct : un fichier évite qu'elle reste dans votre historique de commandes.
+
+Pour envoyer un test, une commande sans option :
+
+```sh
+nimbus services discord-alerts test 123 --json
+```
+
+Elle envoie un vrai **Message de test** dans votre salon, comme le bouton **Envoyer un test**.
+
+Pour tout supprimer, confirmez avec `--yes` :
+
+```sh
+nimbus services discord-alerts delete 123 --yes --json
+```
+
+Elle supprime les alertes, et cette suppression est définitive.
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+Dans l'interface, le panneau affiche votre état de suivi et le test fait apparaître un message dans votre salon Discord. En CLI, `get` répond la configuration active après un `set`, et `test` répond sans erreur. Si aucun message n'arrive malgré un test réussi, vérifiez que le webhook existe toujours dans les paramètres du salon Discord : un webhook supprimé côté Discord ne prévient pas Nimbus avant le prochain envoi.
+
+## Limites
+
+- L'URL doit ressembler à `https://discord.com/api/webhooks/<id>/<jeton>` et tenir en 512 octets. Toute autre URL est refusée avec `URL de webhook Discord invalide : attendu https://discord.com/api/webhooks/<id>/<jeton>`.
+- Un seul test toutes les 10 secondes par projet. Le test suivant trop tôt est refusé, côté interface comme côté CLI.
+- Le test envoie un vrai message : chaque essai apparaît dans votre salon. Évitez de tester en boucle devant vos utilisateurs.
+- `set` remplace sans confirmation et `delete` supprime sans retour : dans les deux cas, l'ancien webhook est perdu et seule une nouvelle URL relance les alertes.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `URL de webhook Discord invalide : attendu https://discord.com/api/webhooks/<id>/<jeton>` | L'URL ne vient pas d'un webhook Discord | Recopiez l'URL depuis **Copier l’URL du webhook** dans les paramètres du salon, sans espace autour |
+| `aucun webhook Discord n'est enregistré pour ce projet` | Aucune alerte configurée | Enregistrez d'abord le webhook avec **Enregistrer** ou `discord-alerts set` |
+| `un message de test vient d'être envoyé : réessayez dans quelques secondes` | Cooldown de 10 secondes entre deux tests | Attendez la fin de **Réessayer dans `{n}` s**, puis renvoyez le test |
+| `le webhook Discord est désactivé : enregistrez un nouveau webhook avant de le tester` | Discord rejette les messages (webhook supprimé côté Discord) | Enregistrez un nouveau webhook avec **Remplacer** ou `discord-alerts set` |
+| `le webhook enregistré est illisible : enregistrez-le de nouveau` | Le secret stocké ne se déchiffre plus | Enregistrez le webhook de nouveau, comme après une désactivation |
+| `Discord est momentanément injoignable : réessayez plus tard` | Discord ne répond pas | Attendez quelques minutes et renvoyez le test ; vos alertes reprendront toutes seules |
+
+La liste complète des messages, tous domaines confondus, vit dans la page [Messages d'erreur](/depannage/messages).
+
+## Pour un agent
+
+1. Demandez l'identifiant du service, ou trouvez-le avec `nimbus services list --json`. Attendez ici la réponse si l'utilisateur doit choisir.
+2. Ne créez jamais le webhook Discord à la place de l'utilisateur : c'est lui qui le crée dans son salon et vous donne le chemin du fichier contenant l'URL.
+3. Lisez l'URL uniquement depuis `--webhook-url-file`, ne l'affichez jamais et ne la collez jamais dans un message : c'est un secret comme un autre.
+4. Envoyez un `test` après chaque `set` et faites confirmer la réception par l'utilisateur avant de conclure.
+
+## Voir aussi
+
+- [Surveiller la santé et les ressources](/plateforme/sante-et-ressources)
+- [Messages d'erreur](/depannage/messages)

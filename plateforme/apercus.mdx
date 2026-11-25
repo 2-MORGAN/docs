@@ -1,0 +1,115 @@
+---
+title: "Tester une merge request avec un aperçu temporaire"
+description: "Obtenez une URL temporaire pour chaque merge request ouverte, sans toucher à la production."
+keywords: ["aperçu", "preview", "merge request", "edge", "site statique"]
+---
+
+## En bref
+
+Chaque merge request ouverte vers la branche par défaut reçoit une URL temporaire pour tester vos changements, sans toucher à la production.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service, onglet **Vue d'ensemble**, panneau **Aperçus des merge requests** (edge uniquement) | `nimbus services previews 123 --json` | Tout membre du projet (lecture seule) | Immédiat, la liste reflète l'état actuel | Oui, l'aperçu passe à `closed` quand la merge request est fermée ou fusionnée |
+
+## Avant de commencer
+
+Votre application est un site `static` ou `spa` déployé sur la cible `edge`. Si votre service tourne sur `kubernetes`, il n'aura aucun aperçu. En cas de doute, lisez la page de choix de cible avant de continuer.
+
+- Vérifiez la connexion avec `nimbus auth whoami`, qui répond sans erreur quand vous êtes connecté.
+- Notez l'identifiant de votre service. Dans les exemples, `123` est l'identifiant du service, celui que vous utilisez déjà dans `nimbus services status 123 --json`.
+- Vérifiez dans GitLab qu'une merge request est ouverte vers la branche par défaut du dépôt.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau des aperçus">
+Ouvrez la page de votre service, puis l'onglet **Vue d'ensemble**. Le panneau **Aperçus des merge requests** liste un aperçu par merge request ouverte. Si vous lisez **Aucun aperçu disponible pour cette application.**, aucune merge request n'a d'aperçu pour l'instant.
+</Step>
+<Step title="Ouvrez l'aperçu prêt">
+Quand un aperçu affiche le badge **Disponible**, cliquez sur **Ouvrir l'aperçu** pour tester vos changements dans votre navigateur. Les autres badges signifient **En construction**, **Échec** ou **Fermé**. Si la liste semble figée, cliquez sur **Actualiser les aperçus**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les aperçus du service">
+Lancez la commande suivante, où `123` est l'identifiant de votre service :
+
+```sh
+nimbus services previews 123 --json
+```
+
+Elle renvoie la liste des aperçus au format JSON, avec un objet par merge request :
+
+```json
+[
+  {
+    "mr_iid": 12,
+    "mr_title": "Ajouter la page tarifs",
+    "mr_url": "https://gitlab.example.com/mon-groupe/mon-appli/-/merge_requests/12",
+    "status": "ready",
+    "url": "https://preview-12.example.com",
+    "source_sha": "abc1234",
+    "updated_at": "2026-11-20T10:00:00Z"
+  }
+]
+```
+
+Chaque objet contient les champs exacts suivants. Le champ `mr_iid` est le numéro de la merge request dans GitLab, et les champs `mr_title` et `mr_url` en reprennent le titre et le lien. Le champ `status` vaut `building` pendant la construction, `ready` quand l'aperçu est prêt, `failed` en cas d'échec, puis `closed` quand la merge request est fermée ou fusionnée. Le champ `url` est l'adresse temporaire, `source_sha` le commit testé, `updated_at` la date de mise à jour, et `error` décrit l'échec éventuel de cet aperçu. Les champs `mr_title`, `mr_url`, `url` et `error` sont absents quand ils sont vides.
+</Step>
+<Step title="Ouvrez l'aperçu prêt">
+Quand le champ `status` vaut `ready`, ouvrez le champ `url` dans votre navigateur et vérifiez vos changements. Comparez ensuite le champ `source_sha` avec le dernier commit de votre merge request dans GitLab. Si les deux diffèrent, poussez vos commits puis relancez la commande pour obtenir l'aperçu à jour. Si un aperçu manque juste après un déploiement, attendez environ une minute puis relancez la commande.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+<Note>Pour choisir entre les cibles, lisez [Choisir une cible](/plateforme/cibles). Pour l'adresse stable de vos visiteurs, lisez la page sur l'URL de production.</Note>
+
+## Vérifier
+
+- Dans l'interface, le panneau **Aperçus des merge requests** liste chaque merge request avec son badge (**En construction**, **Disponible**, **Échec** ou **Fermé**).
+- La commande renvoie un tableau JSON, même vide (`[]` quand aucune merge request n'a d'aperçu).
+- Chaque aperçu attendu affiche son `mr_iid` avec le bon `mr_title`.
+- Quand le champ `status` vaut `ready`, le champ `url` s'ouvre dans votre navigateur.
+- Le champ `source_sha` correspond au dernier commit de la merge request dans GitLab.
+
+## Limites
+
+- Les aperçus existent uniquement sur la cible `edge`, pour les sites `static` et `spa`. Il n'y a pas d'aperçus sur `kubernetes`.
+- Un aperçu correspond à une merge request ouverte vers la branche par défaut. La production ne change jamais pendant vos tests.
+- Cinq aperçus actifs au maximum par service. Au-delà, la merge request est ignorée : fermez ou fusionnez une merge request pour libérer une place.
+- L'aperçu passe à `closed` quand la merge request est fermée ou fusionnée. La branche d'aperçu est alors supprimée dans GitLab.
+- L'URL d'aperçu est temporaire et distincte de l'URL de production, qui est décrite dans la page sur l'URL et la passerelle.
+- En cas d'échec, seul l'aperçu concerné passe à `failed`, avec son propre champ `error`.
+
+<Warning>Pour faire relire une modification en cours, envoyez toujours l'URL temporaire de l'aperçu, jamais l'URL de production.</Warning>
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « les previews n'existent que sur la cible edge » | Le service ne tourne pas sur la cible `edge` | Vérifiez la cible du service, puis lisez la page de choix de cible pour migrer ou recréer le service |
+| « aperçus non configurés » | Le service ne peut pas fournir d'aperçus côté serveur | Réessayez dans quelques minutes, puis prévenez l'équipe Nimbus si le message persiste |
+| « lecture des previews échouée » | La lecture des aperçus a échoué côté serveur | Relancez la commande, puis prévenez l'équipe Nimbus si le message persiste |
+
+Si un aperçu affiche `"status": "failed"`, lisez son champ `error`, corrigez votre branche, poussez vos commits, puis relancez la commande.
+
+## Pour un agent
+
+1. Demandez l'identifiant du service à l'utilisateur, puis attendez sa réponse avant de continuer.
+2. Lancez `nimbus services previews 123 --json`, où `123` est l'identifiant du service, sans ouvrir ni modifier la merge request.
+3. Constatez le résultat en lisant les champs `status`, `url` et `error` de chaque objet, et comparez `source_sha` avec le dernier commit de la branche.
+
+## Voir aussi
+
+- [Choisir une cible](/plateforme/cibles)
+- [URL et passerelle](/plateforme/url-et-passerelle)
+- [Échecs de déploiement](/plateforme/echecs-de-deploiement)

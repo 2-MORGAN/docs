@@ -1,0 +1,245 @@
+---
+title: "Référence des commandes"
+description: "Toutes les commandes de la CLI Nimbus, avec leurs flags utiles."
+keywords: ["cli", "commandes", "référence", "nimbus"]
+---
+
+{/* Généré par scripts/gen-cli-reference.py - ne pas éditer à la main. */}
+
+Cette page liste toutes les commandes de la CLI, telles que la CLI les déclare.
+Les flags obligatoires portent la mention (obligatoire).
+Si aucun flag n'est marqué, vérifiez avec l'aide de la commande sur votre installation.
+Pour la régénérer, lancez :
+
+`nimbus docs --commands | python3 scripts/gen-cli-reference.py cli/commandes.mdx`
+
+## admin
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus admin bundles list` | Lister les bundles en revue | `--limit`, `--offset`, `--query`, `--status` | non |
+| `nimbus admin bundles review <id>` | Décider du sort d'un bundle | `--description`, `--files-reviewed`, `--name`, `--notes`, `--revision`, `--status` | non |
+| `nimbus admin credits get` | Consulter le tableau de bord des crédits | `--threshold` | non |
+| `nimbus admin credits settings get` | Consulter les réglages des crédits | aucun | non |
+| `nimbus admin credits settings set` | Modifier les réglages des crédits | `--default-alert-percent`, `--default-allocation`, `--exceptional-factor`, `--exceptional-floor`, `--input`, `--load-test-credits`, `--projection-threshold` | non |
+| `nimbus admin credits users get <sub>` | Consulter le compte de crédits d'un utilisateur | aucun | non |
+| `nimbus admin credits users set <sub>` | Ajuster l'allocation de crédits d'un utilisateur | `--credits`, `--kind`, `--reason` | non |
+| `nimbus admin frameworks list` | Lister tous les frameworks officiels | aucun | non |
+| `nimbus admin frameworks withdraw <id>` | Retirer un framework officiel | `--notes`, `--revision`, `--yes` | oui |
+| `nimbus admin gitlab-tree get` | Voir l'état de la copie GitLab | aucun | non |
+| `nimbus admin gitlab-tree sync` | Relancer la copie GitLab | aucun | non |
+
+## auth
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus auth login` | Enregistrer une session CNP via le navigateur ou un fichier | `--no-browser`, `--no-wait`, `--resume`, `--token-file` | non |
+| `nimbus auth logout` | Effacer la session locale de l'API sélectionnée | aucun | non |
+| `nimbus auth whoami` | Vérifier la session et afficher l'identité courante | aucun | non |
+
+## classes
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus classes create` | Créer une classe | `--name` | non |
+| `nimbus classes delete <id>` | Supprimer une classe | `--yes` | oui |
+| `nimbus classes import` | Importer des classes depuis un CSV | `--input` | non |
+| `nimbus classes list` | Lister les classes | aucun | non |
+| `nimbus classes members add <id>` | Inscrire des membres à une classe | `--input`, `--usernames` | non |
+| `nimbus classes members list <id>` | Lister les membres d'une classe | aucun | non |
+| `nimbus classes members remove <id> <memberId>` | Retirer un membre d'une classe | `--yes` | oui |
+
+## clusters
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus clusters power get <id>` | Afficher l'état du cluster | aucun | non |
+| `nimbus clusters power set <id>` | Démarrer ou arrêter le cluster | `--action`, `--yes` | oui |
+
+## credits
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus credits get` | Consulter son compte de crédits du mois | aucun | non |
+| `nimbus credits limits get` | Consulter ses limites et alertes globales | aucun | non |
+| `nimbus credits limits set` | Remplacer ses limites et alertes globales | `--input` | non |
+
+## docs
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus docs` | Afficher le guide embarqué pour les agents | `--agent`, `--commands` | non |
+
+## env
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus env pull [id]` | Télécharger le .env de développement | `--force`, `--output`, `--remote` | non |
+| `nimbus env push <id>` | Remplacer le .env de développement | `--dotenv-file`, `--expected-version`, `--yes` | oui |
+| `nimbus env status <id>` | Afficher les métadonnées du coffre dev | aucun | non |
+
+## frameworks
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus frameworks list` | Lister les frameworks officiels | aucun | non |
+
+## gitlab
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus gitlab namespaces` | Lister les groupes GitLab créables | aucun | non |
+| `nimbus gitlab repositories` | Lister les dépôts GitLab accessibles | aucun | non |
+
+## help
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus help [command]` | Help about any command | aucun | non |
+
+## notifications
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus notifications list` | Lister ses notifications Nimbus | `--limit`, `--unread` | non |
+| `nimbus notifications read <notificationId>` | Marquer une notification comme lue | aucun | non |
+| `nimbus notifications read-all` | Marquer toutes ses notifications comme lues | aucun | non |
+
+## pat
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus pat set` | Enregistrer le PAT GitLab personnel | `--expires-at`, `--token-file`, `--yes` | oui |
+| `nimbus pat status` | Afficher le statut du PAT GitLab | aucun | non |
+
+## platform
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus platform health` | Consulter la santé de la plateforme | aucun | non |
+| `nimbus platform ping` | Vérifier la disponibilité de l'API | aucun | non |
+
+## prod-vault
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus prod-vault export <id>` | Exporter le .env de production | `--force`, `--output` | non |
+| `nimbus prod-vault import <id>` | Importer le .env de production | `--dotenv-file`, `--expected-version`, `--yes` | oui |
+| `nimbus prod-vault resync <id>` | Resynchroniser le Secret Kubernetes | aucun | non |
+| `nimbus prod-vault status <id>` | Afficher les clés du coffre de production | aucun | non |
+
+## services
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus services auto-redeploy get <id>` | Afficher le redéploiement automatique | aucun | non |
+| `nimbus services auto-redeploy set <id>` | Activer ou couper le redéploiement automatique | `--enabled` | non |
+| `nimbus services autoscaling delete <id>` | Supprimer l'autoscaling du service | `--yes` | oui |
+| `nimbus services autoscaling get <id>` | Afficher l'autoscaling du service | aucun | non |
+| `nimbus services autoscaling set <id>` | Créer ou remplacer l'autoscaling du service | `--max-replicas`, `--min-replicas`, `--target-cpu-percent` | non |
+| `nimbus services availability delete <id>` | Supprimer le scénario de disponibilité | `--yes` | oui |
+| `nimbus services availability get <id>` | Afficher le scénario de disponibilité | aucun | non |
+| `nimbus services availability preview <id>` | Simuler l'économie d'un planning sans l'enregistrer | `--days`, `--input`, `--timezone` | non |
+| `nimbus services availability savings <id>` | Estimer l'économie du scénario enregistré | `--days` | non |
+| `nimbus services availability set <id>` | Créer ou remplacer le scénario de disponibilité | `--enabled`, `--input`, `--timezone` | non |
+| `nimbus services availability wake <id>` | Allumer l'application pour une durée limitée | `--duration-minutes` | non |
+| `nimbus services availability wake-cancel <id>` | Terminer le réveil temporaire en cours | `--yes` | oui |
+| `nimbus services budget delete <id>` | Supprimer le budget d'une application | `--yes` | oui |
+| `nimbus services budget get <id>` | Consulter le budget d'une application | aucun | non |
+| `nimbus services budget set <id>` | Fixer le budget mensuel d'une application | `--monthly-amount`, `--warning-percent` | non |
+| `nimbus services classes delete <id> <classId>` | Retirer le partage avec une classe | `--yes` | oui |
+| `nimbus services classes set <id> <classId>` | Partager le service avec une classe | `--role` | non |
+| `nimbus services configure` | Configurer et déployer un dépôt existant | `--cluster-id`, `--framework`, `--generated-review-token`, `--input`, `--official-framework-id`, `--prepare-only`, `--repository-id`, `--worker` | non |
+| `nimbus services cost <id>` | Consulter le coût estimé d'une application | `--from`, `--to` | non |
+| `nimbus services create` | Créer un service dans un groupe GitLab | `--cluster-id`, `--framework`, `--name`, `--namespace-id`, `--worker` | non |
+| `nimbus services credits commitment set <id>` | Fixer son engagement de crédits sur une application | `--credits` | non |
+| `nimbus services credits get <id>` | Consulter l'enveloppe de crédits d'une application | aucun | non |
+| `nimbus services credits limits set <id>` | Remplacer les limites et alertes de crédits d'une application | `--input` | non |
+| `nimbus services delete <id>` | Supprimer un service | `--yes` | oui |
+| `nimbus services dependencies <id>` | Consulter les dépendances détectées d'une application | aucun | non |
+| `nimbus services deployment-failure <id>` | Consulter le dernier échec de déploiement | aucun | non |
+| `nimbus services discord-alerts delete <id>` | Supprimer les alertes Discord d'une application | `--yes` | oui |
+| `nimbus services discord-alerts get <id>` | Consulter les alertes Discord d'une application | aucun | non |
+| `nimbus services discord-alerts set <id>` | Configurer les alertes Discord d'une application | `--webhook-url-file` | non |
+| `nimbus services discord-alerts test <id>` | Envoyer une alerte Discord de test | aucun | non |
+| `nimbus services env create <id>` | Créer une variable de l'application déployée | `--key`, `--value-file` | non |
+| `nimbus services env delete <id> <key>` | Supprimer une variable de l'application déployée | `--yes` | oui |
+| `nimbus services env list <id>` | Lister les variables de l'application déployée | aucun | non |
+| `nimbus services env set <id> <key>` | Modifier une variable de l'application déployée | `--value-file` | non |
+| `nimbus services gateway delete <id>` | Désactiver la gateway du service | `--yes` | oui |
+| `nimbus services gateway get <id>` | Afficher les options gateway du service | aucun | non |
+| `nimbus services gateway set <id>` | Activer la gateway ou remplacer ses options | `--cors-credentials`, `--cors-methods`, `--cors-origins`, `--max-body-mb`, `--rate-limit` | non |
+| `nimbus services generation approve` | Approuver un plan de déploiement généré | `--approved`, `--force`, `--input`, `--output`, `--preview-token` | non |
+| `nimbus services generation capabilities` | Afficher les capacités de génération IA | aucun | non |
+| `nimbus services generation preview` | Prévisualiser un déploiement généré par IA | `--force`, `--output`, `--regenerate`, `--repository-id`, `--template-id` | non |
+| `nimbus services identity delete <id>` | Désactiver l'identité OIDC de l'application | `--yes` | oui |
+| `nimbus services identity get <id>` | Afficher l'identité OIDC de l'application | aucun | non |
+| `nimbus services identity roles create <id>` | Créer un rôle de l'application | `--description`, `--name` | non |
+| `nimbus services identity roles delete <id> <role>` | Supprimer un rôle de l'application | `--yes` | oui |
+| `nimbus services identity roles grant <id> <role> <sub>` | Attribuer un rôle à un compte Nimbus | aucun | non |
+| `nimbus services identity roles list <id>` | Lister les rôles de l'application | aucun | non |
+| `nimbus services identity roles revoke <id> <role> <sub>` | Retirer un rôle à un compte Nimbus | `--yes` | oui |
+| `nimbus services identity roles set <id> <role>` | Modifier un rôle de l'application | `--description`, `--name` | non |
+| `nimbus services identity rotate-secret <id>` | Régénérer le secret OIDC de l'application | `--yes` | oui |
+| `nimbus services identity search-users <id>` | Rechercher un compte Nimbus à qui attribuer un rôle | `--query` | non |
+| `nimbus services identity set <id>` | Activer l'identité OIDC de l'application | `--public` | non |
+| `nimbus services list` | Lister les applications accessibles | aucun | non |
+| `nimbus services load-tests latest <id>` | Afficher le dernier test de charge | aucun | non |
+| `nimbus services load-tests start <id>` | Lancer un test de charge sur le service | `--concurrency`, `--duration-seconds`, `--path` | non |
+| `nimbus services logs [id]` | Consulter les logs récents d'une application | `--filter`, `--limit`, `--since` | non |
+| `nimbus services members delete <id> <sub>` | Retirer un membre du service | `--yes` | oui |
+| `nimbus services members list <id>` | Lister les membres du service | aucun | non |
+| `nimbus services members set <id>` | Ajouter ou modifier un membre du service | `--role`, `--username` | non |
+| `nimbus services migration options <id>` | Estimer la migration PostgreSQL d'un service | aucun | non |
+| `nimbus services migration preview <id>` | Estimer la migration PostgreSQL d'un dépôt | `--framework` | non |
+| `nimbus services observability health <id>` | Consulter la santé d'observabilité d'une application | aucun | non |
+| `nimbus services observability logs <id>` | Consulter les logs d'observabilité d'une application | `--component`, `--filter`, `--level`, `--limit`, `--window` | non |
+| `nimbus services observability resources <id>` | Consulter les ressources consommées d'une application | `--window` | non |
+| `nimbus services pipeline <id>` | Consulter le pipeline GitLab d'une application | aucun | non |
+| `nimbus services policy set <id>` | Définir la politique du service | `--kind`, `--members-locked` | non |
+| `nimbus services postgres backups create <id>` | Créer une sauvegarde PostgreSQL | aucun | non |
+| `nimbus services postgres backups delete <id> <backupId>` | Supprimer une sauvegarde PostgreSQL | `--yes` | oui |
+| `nimbus services postgres backups get <id> <backupId>` | Télécharger une sauvegarde PostgreSQL | `--force`, `--output` | non |
+| `nimbus services postgres backups list <id>` | Lister les sauvegardes PostgreSQL | aucun | non |
+| `nimbus services postgres backups restore <id> <backupId>` | Restaurer une sauvegarde PostgreSQL | `--yes` | oui |
+| `nimbus services postgres create <id>` | Ajouter la base PostgreSQL gérée au service | `--db-name`, `--db-user`, `--image`, `--input`, `--storage-size` | non |
+| `nimbus services postgres delete <id>` | Supprimer la base PostgreSQL du service | `--yes` | oui |
+| `nimbus services postgres get <id>` | Afficher la base PostgreSQL du service | aucun | non |
+| `nimbus services previews <id>` | Lister les environnements de prévisualisation | aucun | non |
+| `nimbus services quota delete <id>` | Supprimer le quota de ressources du service | `--yes` | oui |
+| `nimbus services quota get <id>` | Afficher le quota de ressources du service | aucun | non |
+| `nimbus services quota set <id>` | Fixer le quota de ressources du service | `--cpu-cores`, `--max-pods`, `--memory-gib` | non |
+| `nimbus services redeploy [id]` | Redéployer une application existante | aucun | non |
+| `nimbus services start [id]` | Demander le démarrage d'une application | aucun | non |
+| `nimbus services status [id]` | Consulter l'état courant d'une application | aucun | non |
+| `nimbus services stop [id]` | Demander l'arrêt d'une application | aucun | non |
+| `nimbus services vulnerabilities <id>` | Consulter les vulnérabilités détectées d'une application | aucun | non |
+
+## targets
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus targets list` | Lister les cibles de déploiement | aucun | non |
+
+## templates
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus templates create` | Créer un modèle depuis une application | `--name`, `--source-project-id` | non |
+| `nimbus templates delete <id>` | Supprimer un modèle de déploiement | `--yes` | oui |
+| `nimbus templates list` | Lister mes modèles de déploiement | aucun | non |
+
+## users
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus users search` | Rechercher des comptes | `--query` | non |
+
+## vps
+
+| Commande | À quoi elle sert | Flags utiles | Destructive ? |
+| --- | --- | --- | --- |
+| `nimbus vps create` | Créer un nœud VPS | `--force`, `--label`, `--output` | non |
+| `nimbus vps delete <id>` | Supprimer un nœud VPS | `--yes` | oui |
+| `nimbus vps join <id>` | Régénérer la commande de jonction | `--force`, `--output` | non |
+| `nimbus vps list` | Lister mes nœuds VPS | aucun | non |

@@ -1,51 +1,49 @@
 ---
-title: "index"
+title: "Nimbus : mettez votre application en ligne"
+description: "Nimbus déploie vos dépôts GitLab sur Kubernetes : trouvez votre point de départ selon ce que vous voulez faire."
+keywords: ["nimbus", "démarrer", "déploiement", "kubernetes", "gitlab", "première application"]
 ---
 
-# Bienvenue sur CNP
+## Ce que fait Nimbus
 
-**CNP** est la plateforme de l'équipe 2Morgan qui vous permet de **déployer automatiquement vos projets GitLab sur Kubernetes**, sans vous soucier de la configuration CI/CD, Docker ou Kubernetes.
+Nimbus prend le code de votre dépôt GitLab et le met en ligne pour vous. Vous choisissez une cible de déploiement, puis Nimbus construit l'image et surveille l'exécution. Chaque application web reçoit une adresse HTTP dès son premier déploiement. Quand vous voulez du HTTPS avec des protections (CORS, débit, taille des requêtes), vous activez la passerelle. Vous n'écrivez ni manifeste Kubernetes ni pipeline à la main.
 
-En quelques clics, CNP :
+Une application Nimbus sait aussi stocker vos variables et secrets, brancher une base PostgreSQL, planifier ses horaires d'activité, autoscaler selon la charge et vous alerter sur Discord en cas de panne. Tout se pilote depuis l'interface web ou depuis la CLI `nimbus`.
 
-- Détecte votre stack technologique (Go, Next.js, NestJS, Spring Boot, Django)
-- Configure le pipeline CI/CD GitLab
-- Génère le Dockerfile et les fichiers Kubernetes
-- Déploie votre application et vous donne une URL d'accès
+## Humain ou agent ?
 
-<CardGroup cols={2}>
-  <Card title="Déployer mon premier service" icon="rocket" href="/quickstart">
-    Du premier login à l'URL de votre service en production — guide complet.
-  </Card>
+Cette documentation s'adresse aux deux. Si vous êtes une personne débutante, avancez page par page en commençant par le vocabulaire dans [les notions](/demarrer/notions). Si vous êtes un agent IA qui doit déployer sans aide humaine, lisez d'abord [le guide des agents](/agents/index), qui donne le déroulé exact et les règles à respecter.
 
-  <Card title="Configurer l'accès GitLab" icon="key" href="/guides/pat-setup">
-    Créez et enregistrez votre token GitLab pour que CNP puisse travailler sur vos dépôts.
-  </Card>
+## Je veux...
 
-  <Card title="Frameworks disponibles" icon="code" href="/guides/frameworks">
-    Go, Next.js, NestJS, Spring Boot, Django — voyez ce que CNP génère pour votre stack.
-  </Card>
+| Vous voulez... | Commencez par... |
+| --- | --- |
+| Comprendre le vocabulaire (projet, cible, pipeline, coffre) | [Les notions](/demarrer/notions) |
+| Vous connecter à Nimbus | [Se connecter](/demarrer/connexion) |
+| Relier votre compte GitLab avec un jeton | [Créer le jeton GitLab](/demarrer/gitlab) |
+| Mettre une application en ligne le plus vite possible | [Votre première application](/demarrer/premiere-application) |
+| Déployer un dépôt qui contient déjà du code | [Déployer un dépôt existant](/parcours/depot-existant) |
+| Créer un projet vide puis coder dedans | [Créer un nouveau dépôt](/parcours/nouveau-depot) |
+| Laisser l'IA préparer le déploiement | [Générer avec l'IA](/parcours/generation-ia) |
+| Déployer une application qui ne ressemble à aucun cas ci-dessus | [Déployer une autre application](/parcours/autre-application) |
+| Passer des variables et des secrets à mon app | [Variables et secrets](/parcours/variables-secrets) |
+| Ajouter une base de données | [Ajouter PostgreSQL](/parcours/postgresql) |
+| Exposer mon app sur une URL publique | [Passer une application en HTTPS](/parcours/exposer-application) |
+| Comprendre ce qui ne tourne plus | [Logs et pannes](/parcours/logs-et-pannes) |
+| Travailler à plusieurs ou avec une classe | [Travailler en équipe](/parcours/equipe) |
+| Utiliser le terminal plutôt que le navigateur | [Installer la CLI](/cli/installation) |
+| Comprendre un message d'erreur exact | [Messages d'erreur](/depannage/messages) |
 
-  <Card title="Aide et dépannage" icon="life-ring" href="/guides/aide">
-    Quelque chose ne fonctionne pas ? Consultez les solutions aux problèmes courants.
-  </Card>
-</CardGroup>
+## Les deux façons de travailler
 
----
+L'interface web (`https://cnp.2morgan.fun`) montre chaque action avec ses boutons et ses formulaires. La CLI `nimbus` fait la même chose en ligne de commande, ce qui convient aux scripts et aux agents. Quand une action n'existe que d'un seul côté, la page concernée le dit en toutes lettres.
 
-## Comment ça marche
+Concrètement, votre premier parcours tient en trois gestes : connectez-vous, enregistrez votre jeton GitLab, puis créez votre première application. Chacune de ces étapes a sa page dans le tableau ci-dessus, alors avancez dans l'ordre et vérifiez chaque résultat avant de passer à la suite.
 
-<Steps>
-  <Step title="Vous vous connectez">
-    Via votre compte Microsoft EPITA ou avec un accès administrateur.
-  </Step>
-  <Step title="Vous donnez accès à GitLab">
-    En enregistrant un Personal Access Token — CNP l'utilise pour travailler sur vos dépôts.
-  </Step>
-  <Step title="Vous sélectionnez un dépôt">
-    Choisissez le projet GitLab à déployer. CNP détecte automatiquement votre framework.
-  </Step>
-  <Step title="CNP fait le reste">
-    CI/CD configuré, Docker prêt, déploiement sur Kubernetes — vous recevez l'URL de votre service.
-  </Step>
-</Steps>
+Pour comparer les deux côté par côté, lisez [interface ou CLI](/cli/interface-ou-cli).
+
+## Voir aussi
+
+- [Les notions](/demarrer/notions)
+- [Votre première application](/demarrer/premiere-application)
+- [Guide des agents](/agents/index)

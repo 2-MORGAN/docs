@@ -1,0 +1,158 @@
+---
+title: "Créer un projet depuis un dépôt existant ou neuf"
+description: "Créez votre projet Nimbus depuis un dépôt GitLab existant ou un dépôt neuf, dans l'interface ou avec la CLI."
+keywords: ["créer un projet", "nouveau projet", "dépôt existant", "services configure", "services create"]
+---
+
+## En bref
+
+Vous reliez un dépôt GitLab à Nimbus, puis vous enregistrez le projet en brouillon ou vous le déployez aussitôt.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Projets** > **Nouveau projet** (`/dashboard/new`) | `nimbus services configure`, `nimbus services create` | Tout utilisateur connecté (rôles owner ou admin côté plateforme, droits Maintainer sur le dépôt requis) | Immédiat | La préparation reste un brouillon ; le déploiement écrit sur la branche `cnp-deploy` et lance le pipeline |
+
+## Avant de commencer
+
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous avez repéré votre dépôt : `nimbus gitlab repositories --json` liste les dépôts visibles.
+- Votre compte GitLab est relié : sinon l'étape **Dépôt** affiche **Token GitLab requis sur cet environnement** avec le bouton **Ajouter un token GitLab**.
+- Vous avez choisi une cible : `nimbus targets list --json` liste les cibles, et `k3s-oracle` (libellé **On premise**) convient dans la plupart des cas.
+- Vous connaissez le framework du dépôt, ou vous laissez la détection automatique. Un dépôt neuf exige un framework explicite.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la page">
+Ouvrez la page **Nouveau projet** à l'adresse `/dashboard/new`. L'assistant démarre à l'étape **Dépôt** et annonce **Une application CNP est liée à un dépôt source.**
+</Step>
+<Step title="Choisissez le point de départ">
+Sélectionnez **Importer un dépôt** (sous-titre **Utiliser un projet existant**) pour un dépôt qui contient déjà du code. Sélectionnez **Créer un dépôt** (sous-titre **Démarrer un nouveau projet**) pour partir d'un dépôt vide.
+</Step>
+<Step title="Indiquez un dépôt existant">
+Lisez le panneau **Choisir un dépôt GitLab**. Tapez son nom dans **Rechercher un dépôt**. Cliquez sur le dépôt dans la liste. Si la liste reste vide, cliquez sur **Réessayer** ou suivez **Ajouter un token pour d’autres dépôts GitLab**. Si votre compte GitLab n'est pas relié, cliquez sur **Se reconnecter**.
+</Step>
+<Step title="Ou créez un dépôt neuf">
+Saisissez le **Nom du dépôt**. Ouvrez **Groupe GitLab**. Choisissez le groupe qui accueillera votre nouveau dépôt. Si aucun groupe n'apparaît, cliquez sur **Actualiser les groupes**.
+</Step>
+<Step title="Configurez le projet">
+Cliquez sur **Continuer** : l'écran **Préparer le projet** s'affiche. Ouvrez **Cible de déploiement**. Choisissez votre cible. Dans le groupe **Framework**, gardez **Détection automatique**. Si la détection échoue, sélectionnez le framework. Cochez **Déployer ce dépôt maintenant** pour déployer aussitôt. Laissez la case décochée pour enregistrer un brouillon.
+</Step>
+<Step title="Ajoutez une base si besoin">
+L'étape **Base de données** rappelle **Cette étape est optionnelle.** Cochez **Ajouter PostgreSQL** seulement si votre application exige une base. Réglez les détails sur la page [PostgreSQL](/plateforme/postgresql).
+</Step>
+<Step title="Vérifiez et lancez">
+L'écran **Vérifier le projet** résume **Dépôt**, **Groupe GitLab**, **Framework**, **Hébergement**, **Mode** et **PostgreSQL**. Cliquez sur **Créer le projet** pour enregistrer un brouillon. Cliquez sur **Déployer l’application** pour déployer aussitôt.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Repérez le dépôt">
+```sh
+nimbus gitlab repositories --json
+```
+Elle renvoie vos dépôts avec leur identifiant. Par exemple, le dépôt `mon-appli` porte ici l'identifiant `123`.
+</Step>
+<Step title="Repérez le groupe">
+```sh
+nimbus gitlab namespaces --json
+```
+Elle renvoie vos groupes GitLab. Notez l'identifiant du groupe (`12` dans les exemples) : c'est la valeur de `--namespace-id`.
+</Step>
+<Step title="Repérez la cible">
+```sh
+nimbus targets list --json
+```
+Elle renvoie vos cibles. Notez l'identifiant de la cible (`k3s-oracle` dans les exemples) : c'est la valeur de `--cluster-id`.
+</Step>
+<Step title="Déployez un dépôt existant">
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle
+```
+Elle déploie le dépôt `mon-appli` : elle crée le service (réponse 201), puis elle attend le pipeline et la synchronisation, jusqu'à dix minutes.
+</Step>
+<Step title="Préparez sans déployer">
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle --prepare-only
+```
+Elle enregistre le projet en développement (réponse 201) sans lancer le pipeline. Relancez sans `--prepare-only` pour déployer.
+</Step>
+<Step title="Créez un dépôt neuf">
+```sh
+nimbus services create --name mon-appli --framework go --namespace-id 12 --cluster-id k3s-oracle
+```
+L'option `--namespace-id 12` désigne le groupe GitLab (liste via `gitlab namespaces --json`), et vous l'omettez si vous n'avez qu'un seul groupe créable. L'option `--framework` est obligatoire ici, car un dépôt vide ne se détecte pas. Elle crée le projet sans le déployer (réponse 201, état development). Poussez ensuite votre code. Déployez avec `services configure`.
+</Step>
+<Step title="Utilisez un fichier JSON">
+Écrivez le fichier `projet.json` :
+
+```json
+{
+  "repository_id": 123,
+  "framework": "go",
+  "cluster_id": "k3s-oracle"
+}
+```
+
+Puis lancez :
+
+```sh
+nimbus services configure --input projet.json --json
+```
+Elle lit le fichier et déploie comme avec les flags. Vous pouvez remplacer le fichier par `-` pour lire depuis l'entrée standard.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La page du projet affiche le récapitulatif et l'état du déploiement.
+- Une fois en ligne, la fiche affiche l'URL publique de l'application.
+- En CLI, lancez `nimbus services status 123 --json`, où `123` est l'identifiant du service. Elle renvoie l'état du service.
+
+## Limites
+
+- La commande `services create` exige `--name` et `--framework`, et elle refuse le framework `generated` (400).
+- La commande `services configure` exige `--repository-id`, et elle détecte le framework si vous l'omettez.
+- La commande `services configure` n'accepte `generated` qu'avec `--generated-review-token`, après approbation de la proposition IA (voir [Choisir un framework](/plateforme/frameworks)).
+- Sans `--cluster-id`, le serveur applique sa cible par défaut (à vérifier sur votre installation).
+- L'option `--prepare-only` refuse toute option PostgreSQL.
+- L'option `--namespace-id` est optionnelle quand un seul groupe est créable.
+- La commande `services create` prépare toujours sans déployer (réponse 201, état development).
+- Sans droits Maintainer sur le dépôt, `services configure` répond 403. Sans rôle Maintainer sur le groupe, `services create` répond 403.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| 400 « repository_id est requis » | `--repository-id` manquant | Relancez avec `--repository-id 123`, où `123` est l'identifiant du dépôt (via `gitlab repositories --json`) |
+| 400 « framework non supporté » | Framework inconnu | Choisissez parmi `go`, `nextjs`, `springboot`, `nestjs`, `django`, `static` et `spa` |
+| 400 « name est requis », « framework est requis pour créer un service » | Option `--name` ou `--framework` manquante pour `create` | Ajoutez les options manquantes (`--name mon-appli --framework go`) |
+| 400 « un dépôt neuf n'a pas de code à analyser : choisir un framework » | Framework `generated` passé à `create` | Choisissez un framework réel pour un dépôt neuf ; `configure` n'accepte `generated` qu'avec `--generated-review-token` (proposition IA approuvée, voir [Choisir un framework](/plateforme/frameworks)) |
+| 400 « la préparation du projet ne provisionne pas PostgreSQL ; ajoutez la base au déploiement » | Base demandée avec `--prepare-only` | Retirez l'option PostgreSQL ou déployez directement |
+| « Token GitLab requis sur cet environnement » (interface) | Aucun jeton GitLab posé | Cliquez sur **Ajouter un token GitLab** |
+| 403 « Token GitLab non configuré. Rendez-vous dans vos paramètres. » | Appel API sans jeton GitLab | Reliez votre compte GitLab, puis relancez |
+| 403 « droits Maintainer requis pour configurer ce dépôt » | Droits GitLab insuffisants sur le dépôt | Demandez un accès Maintainer sur le dépôt |
+| 403 « GitLab refuse la création du dépôt dans … : le rôle Maintainer y est requis » | Rôle insuffisant sur le groupe GitLab, dont le chemin remplace « … » | Demandez le rôle Maintainer sur ce groupe |
+
+## Pour un agent
+
+1. Demandez le point de départ (dépôt existant ou neuf), le framework et la cible. Attendez ici la réponse.
+2. Résolvez les identifiants avec `gitlab repositories --json`, `gitlab namespaces --json` et `targets list --json`.
+3. Pour un dépôt existant, lancez `services configure` avec `--cluster-id` explicite. Pour un dépôt neuf, lancez `services create` (sans déploiement), faites pousser le code, puis lancez `configure`.
+4. Ne combinez jamais `--prepare-only` avec une option PostgreSQL.
+5. Constatez le résultat avec `services status 123 --json`, où `123` est l'identifiant du service.
+
+## Voir aussi
+
+- [Préparer votre dépôt](/plateforme/preparer-son-depot)
+- [Choisir un framework](/plateforme/frameworks)
+- [Choisir une cible](/plateforme/cibles)

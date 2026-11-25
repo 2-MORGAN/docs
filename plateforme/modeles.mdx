@@ -1,0 +1,112 @@
+---
+title: "Choisir un framework ou réutiliser un modèle"
+description: "Laissez Nimbus détecter votre framework, appliquez une recette officielle ou réutilisez vos fichiers de déploiement."
+keywords: ["framework", "modèle", "recette officielle", "détection automatique", "fichiers enregistrés"]
+---
+
+## En bref
+
+Nimbus reconnaît votre dépôt automatiquement, et vous choisissez la recette qui construit votre application.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Nouveau projet** > **Préparer le projet**, groupe **Framework** | `nimbus frameworks list`, `nimbus services generation preview` | Propriétaire du projet ou administrateur | Au déploiement suivant | Oui, changez de recette avant de redéployer |
+
+## Avant de commencer
+
+- Votre dépôt est visible dans Nimbus, et vous savez s'il contient déjà du code.
+- Vérifiez votre connexion avec `nimbus auth whoami`, qui répond sans erreur.
+- Listez les recettes officielles disponibles avec la commande suivante, qui affiche la liste sans rien modifier.
+
+```sh
+nimbus frameworks list --json
+```
+
+Elle renvoie les recettes officielles publiées, avec leur identifiant, leur nom, leur description et leur révision.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la configuration du framework">
+Cliquez sur **Nouveau projet**, puis choisissez votre dépôt. À l'étape **Préparer le projet**, ouvrez le groupe **Framework**. Pendant l'analyse, la liste affiche **Détection en cours…**, puis elle propose **Choisir un framework** si rien n'a été reconnu.
+</Step>
+<Step title="Gardez la détection ou choisissez une recette officielle">
+Si Nimbus reconnaît votre dépôt, la ligne **Configuration** porte le badge **Détecté**. Les recettes relues par les administrateurs portent le suffixe **Officiel** dans la liste, par exemple `Go · Officiel`, et la ligne **Configuration** porte alors le badge **Officiel**. Cliquez sur la recette voulue, puis confirmez si un dialogue vous demande de valider le changement.
+</Step>
+<Step title="Traitez le cas d'un dépôt non pris en charge">
+Si votre dépôt n'entre dans aucun framework officiel, la page affiche **Ce framework n’est pas pris en charge par Nimbus. Vous pouvez faire générer les fichiers de déploiement.** Cliquez alors sur **Générer avec l’IA**. Tout ce parcours est décrit dans la page de génération IA.
+</Step>
+<Step title="Réutilisez vos fichiers ou enregistrez-les">
+Si vous avez déjà enregistré des fichiers depuis un déploiement IA réussi, cliquez sur **Réutiliser mes fichiers**. Le dialogue **Mes fichiers de déploiement** s'ouvre, choisissez un jeu de fichiers, puis relisez et approuvez la proposition. La mention **Fichiers réutilisés, sans nouvel appel IA.** confirme qu'aucune analyse n'a été relancée. Après un déploiement IA réussi, cliquez sur **Enregistrer les fichiers IA**, donnez un nom dans le champ **Nom des fichiers enregistrés**, puis validez dans le dialogue **Enregistrer les fichiers de déploiement**. Pour retirer un jeu devenu inutile, ouvrez **Mes fichiers de déploiement**, cliquez sur **Supprimer**, puis confirmez dans le dialogue **Supprimer ces fichiers enregistrés ?**
+</Step>
+</Steps>
+
+<Note>Les badges **Officiel**, **Détecté**, **Modèle**, **Personnalisé** et **Proposition IA**, ainsi que l'examen fichier par fichier de la proposition, n'existent que dans l'interface.</Note>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les recettes officielles">
+```sh
+nimbus frameworks list --json
+```
+Elle renvoie les recettes officielles avec leur identifiant. Cette commande est en lecture seule, elle ne modifie rien.
+</Step>
+<Step title="Déployez avec une recette officielle">
+```sh
+nimbus services configure --repository-id 123 --framework generated --official-framework-id <ID_OFFICIEL> --cluster-id <ID_CIBLE>
+```
+`123` est l'identifiant GitLab de votre dépôt. `<ID_OFFICIEL>` est l'identifiant de la recette officielle, que vous copiez depuis le résultat de `frameworks list`. `<ID_CIBLE>` est l'identifiant de la cible de déploiement, que vous obtenez avec `nimbus targets list --json`. La valeur `generated` est obligatoire avec une recette officielle, et `official_framework_id` désigne la recette officielle choisie.
+</Step>
+<Step title="Réutilisez vos fichiers enregistrés">
+```sh
+nimbus services generation preview --repository-id 123 --template-id <ID_MODELE> --output ./preview.json
+```
+`<ID_MODELE>` est l'identifiant de vos fichiers enregistrés, que vous retrouvez avec `nimbus templates list --json`, ou dans le dialogue **Mes fichiers de déploiement**. `./preview.json` est le fichier où la réponse est écrite. Elle construit la proposition à partir de vos fichiers, sans nouvel appel IA, et écrit le résultat dans `./preview.json`. La suite du parcours IA est décrite dans la page de génération IA.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La ligne **Configuration** affiche le bon badge, **Officiel**, **Détecté**, **Modèle**, **Personnalisé** ou **Proposition IA**.
+- Avec vos fichiers réutilisés, la page affiche **Fichiers réutilisés, sans nouvel appel IA.**
+- En CLI, `nimbus frameworks list --json` liste les recettes officielles publiées, et `./preview.json` contient la proposition construite depuis votre modèle.
+
+## Limites
+
+- Nimbus connaît sept frameworks natifs, plus le moteur `generated` pour l'IA et les recettes officielles. Le port écouté dépend du framework : `go` écoute sur 8080, `nextjs` sur 3000, `springboot` sur 8080, `nestjs` sur 3000, `django` sur 8000, `static` et `spa` sur 80.
+- La détection lit les fichiers à la racine du dépôt : `go.mod` ou `go.work` donne `go`, un fichier `next.config.js`, `next.config.ts`, `next.config.mjs` ou `next.config.cjs` donne `nextjs`, un fichier `package.json` qui déclare `next` donne `nextjs` et qui déclare `@nestjs/core` ou `@nestjs/common` donne `nestjs`, un fichier `nest-cli.json` donne `nestjs`, un fichier `package.json` avec `index.html` à la racine et Vite donne `spa`, un fichier `manage.py` donne `django`, un fichier `pom.xml`, `build.gradle` ou `build.gradle.kts` avec Spring Boot donne `springboot`, un fichier `requirements.txt` ou `pyproject.toml` avec Django donne `django`, et un fichier `next.config.js`, `next.config.mjs` ou `next.config.ts` qui déclare `output: export` donne `spa`.
+- Seuls les sites `static` et `spa` peuvent partir sur une cible edge, les autres frameworks exigent une cible kubernetes. Choisissez donc la cible en fonction du framework, par exemple `k3s-oracle` pour une application et `cloudflare` pour un site.
+- En CLI, `nimbus frameworks list` affiche seulement les recettes, sans créer ni modifier quoi que ce soit.
+- Vos fichiers enregistrés sont personnels, vous seul pouvez les réutiliser ou les supprimer. Les applications déjà déployées gardent leurs fichiers après une suppression.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « Sélection manuelle requise pour ce dépôt. » | La détection n'a rien reconnu | Sélectionnez vous-même un framework dans le groupe **Framework** |
+| « Ce framework n’est pas pris en charge par Nimbus. Vous pouvez faire générer les fichiers de déploiement. » | Dépôt hors frameworks officiels | Cliquez sur **Générer avec l’IA**, puis suivez la page de génération IA |
+| « Ce framework officiel n’est plus disponible. Choisissez une autre configuration. » | La recette officielle a été retirée | Choisissez une autre recette dans le groupe **Framework** |
+| 404 « recette générée personnelle introuvable » | `<ID_MODELE>` inconnu ou enregistré par un autre compte | Reprenez l'identifiant depuis **Mes fichiers de déploiement**, ou enregistrez à nouveau vos fichiers |
+| « Aucun fichier enregistré. Vous pourrez en enregistrer depuis la page d’une application après son premier déploiement IA réussi. » | Vous n'avez encore rien enregistré | Déployez une première fois avec l'IA, puis cliquez sur **Enregistrer les fichiers IA** |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur l'identifiant du dépôt et la recette visée, puis attendez sa réponse avant d'agir.
+2. Listez les recettes avec `nimbus frameworks list --json` et lisez uniquement l'identifiant utile, sans l'inventer.
+3. Si la détection échoue, demandez le framework à l'utilisateur au lieu de deviner, car un mauvais choix casse le déploiement.
+4. Demandez l'accord explicite avant chaque `services configure`, car il déploie réellement l'application.
+5. Constatez le résultat en relisant le badge de la ligne **Configuration** dans l'interface, ou le contenu de `./preview.json` en CLI.
+
+## Voir aussi
+
+- [Générer une application avec l'IA](/plateforme/generation-ia)
+- [Choisir une cible de déploiement](/plateforme/cibles)
+- [Préparer son dépôt](/plateforme/preparer-son-depot)

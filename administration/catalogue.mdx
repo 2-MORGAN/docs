@@ -1,0 +1,116 @@
+---
+title: "Examiner les bundles et gérer le catalogue officiel"
+description: "En tant qu'admin, examinez les bundles des utilisateurs, puis publiez ou retirez les frameworks du catalogue."
+keywords: ["administration", "bundles", "catalogue", "frameworks officiels", "revue", "publier"]
+---
+
+## En bref
+
+Vous examinez les bundles déposés par les utilisateurs, puis vous publiez les recettes sûres au catalogue officiel.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Menu **Administration**, panneau **Bundles IA et frameworks officiels** | `nimbus admin bundles list --status pending --limit 20 --json` | Rôle plateforme `admin` | Publication immédiate au catalogue | Oui, un framework publié se retire du catalogue |
+
+## Avant de commencer
+
+- Vous disposez du rôle plateforme `admin` et la page `/dashboard/admin` s'ouvre sans garde.
+- Un bundle naît du déploiement réussi d'un utilisateur : vous ne créez rien ici, vous décidez du sort des dépôts.
+- Pour publier, vous devez examiner les trois fichiers du bundle et renseigner son nom officiel et sa description.
+- Pour la CLI, vous êtes connecté : `nimbus auth login` répond sans erreur.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau des bundles">
+Dans le menu, cliquez sur **Administration**. Le panneau **Bundles IA et frameworks officiels** contient le sous-panneau **Bundles enregistrés par les utilisateurs**.
+</Step>
+<Step title="Trouvez le bundle à examiner">
+Saisissez un nom dans **Nom du bundle ou utilisateur**, cliquez sur **Rechercher**, puis filtrez avec **État de la revue** : **À examiner**, **En revue**, **Refusé**, **Publié** ou **Retiré**. Chaque ligne propose **Examiner**. Naviguez avec **Précédents** et **Suivants**.
+</Step>
+<Step title="Examinez les trois fichiers">
+Cliquez sur **Examiner** : le dialogue `Examiner « <NOM> »` s'ouvre, où `<NOM>` est le nom du bundle. Ouvrez chaque onglet, **Dockerfile**, **Image de build** puis **Commandes CI**, et cliquez sur **J'ai examiné ce fichier** dans chacun. Renseignez **Nom du framework officiel**, **Prérequis et compatibilité** et **Commentaire de revue**. Cochez la case **J'ai examiné les trois éléments et j'autorise la publication de ces fichiers pour tous les utilisateurs**, puis choisissez **Marquer en revue**, **Refuser le bundle** (motif exigé) ou **Publier comme framework officiel**.
+</Step>
+<Step title="Retirez un framework du catalogue">
+Le sous-panneau **Catalogue officiel** liste les frameworks publiés avec le badge **Disponible pour tous** (ou **Retiré**). Cliquez sur **Voir les fichiers** pour contrôler, ou sur **Retirer** : le dialogue `Retirer « <NOM> » du catalogue ?` demande le **Motif du retrait**. Cliquez sur **Retirer du catalogue** pour confirmer.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les bundles en attente">
+```sh
+nimbus admin bundles list --status pending --limit 20 --json
+```
+Elle renvoie `bundles`, `total`, `limit` et `offset`. Filtrez avec `--status pending|reviewing|rejected|published|withdrawn`, `--query` et `--offset`.
+</Step>
+<Step title="Décidez du sort d'un bundle">
+```sh
+nimbus admin bundles review 12 --revision 3 --status published --name mon-fw --description "FastAPI" --files-reviewed --json
+```
+`12` est l'identifiant du bundle et `3` sa révision courante. Choisissez `--status reviewing`, `rejected` ou `published`. La publication exige `--name`, `--description` et `--files-reviewed`. Un refus exige `--notes` avec le motif.
+</Step>
+<Step title="Listez le catalogue officiel">
+```sh
+nimbus admin frameworks list --json
+```
+Elle renvoie tous les frameworks officiels, y compris les retirés, dans `frameworks`.
+</Step>
+<Step title="Retirez un framework du catalogue">
+```sh
+nimbus admin frameworks withdraw 5 --revision 7 --notes "CVE" --yes --json
+```
+`5` est l'identifiant du framework et `7` sa révision courante. C'est la seule commande destructive du périmètre : elle exige `--yes` et `--notes`, et renvoie un `204` vide.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le bundle passe à **En revue**, **Refusé** ou **Publié** après votre décision.
+- `frameworks list` contient le nouveau framework juste après publication.
+- Après un retrait, le framework porte le badge **Retiré** et disparaît des choix des utilisateurs.
+- `withdraw` renvoie un `204` vide, sans corps à contrôler.
+
+## Limites
+
+- `--limit` accepte 1 à 100 (défaut 25), `--offset` au plus 1000000, `--query` 200 caractères au plus.
+- La publication exige les trois fichiers examinés, le nom officiel, la description et la case cochée (ou `--files-reviewed` avec `--name` et `--description` en CLI).
+- Un refus exige toujours un motif, dans le commentaire ou `--notes`.
+- Seule `frameworks withdraw` est destructive et exige `--yes`, avec `--revision` et `--notes`.
+- `withdrawn` se liste et s'affiche en badge, mais ne se décide pas depuis la revue : seul `withdraw` y mène.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `403 « réservé aux administrateurs de Nimbus »` | Rôle `admin` manquant | Demandez le rôle à un administrateur |
+| `400 « limite invalide »`, `« position invalide »`, `« recherche trop longue »` ou `« statut de revue invalide »` | Paramètre de liste hors borne | Corrigez la valeur et relancez |
+| `400 « décision de revue invalide »` | Décision ou révision incohérente | Relisez le bundle et reprenez sa révision courante |
+| `404 « bundle ou framework officiel introuvable »` | Identifiant inconnu ou révision périmée | Relistez et reprenez l'identifiant et la révision courants |
+| `409 « un framework officiel porte déjà ce nom »` | Nom déjà pris au catalogue | Choisissez un autre nom officiel |
+| `400 « expliquez le refus dans le commentaire »` | Refus sans motif | Renseignez le commentaire de revue ou `--notes` |
+| `400 « examinez et approuvez les fichiers avant leur publication officielle »` | Fichiers non tous examinés | Ouvrez chaque onglet, cliquez sur **J'ai examiné ce fichier**, recochez la case |
+| `422 « ces fichiers ne passent plus les contrôles de validation ; leur publication est refusée »` | Contenu invalide | Refusez le bundle avec un motif |
+| « cette opération destructive nécessite --yes » sans `--yes` | Confirmation manquante | Ajoutez `--yes` (retrait uniquement) |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur quel bundle traiter et quelle décision prendre : marquer en revue, refuser ou publier. Attendez ici la réponse.
+2. Listez avec `nimbus admin bundles list --status pending --limit 20 --json` et relevez l'identifiant et la révision.
+3. Publier, refuser ou retirer a un effet visible par tous : demandez l'accord explicite avant chaque décision, avec le nom officiel et le motif exacts.
+4. Constatez avec `nimbus admin frameworks list --json` après publication, ou le badge **Retiré** après retrait.
+5. En cas de `403`, ne contournez jamais : vérifiez le rôle avec l'utilisateur.
+
+## Voir aussi
+
+- [Frameworks reconnus](/plateforme/frameworks)
+- [Générer une application par IA](/plateforme/generation-ia)
+- [Commandes CLI](/cli/commandes)

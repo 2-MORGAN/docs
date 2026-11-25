@@ -1,0 +1,105 @@
+---
+title: "Supprimer votre application sans garder de ressources"
+description: "Supprimez votre application et sa base PostgreSQL, avec sauvegarde préalable, en sachant que le dépôt GitLab est conservé."
+keywords: ["supprimer", "suppression", "supprimer application", "irréversible", "sauvegarde préalable"]
+---
+
+## En bref
+
+Vous retirez votre application et ses ressources Nimbus quand vous n'en avez plus besoin, en sachant que cette action est définitive.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Onglet **Paramètres**, carte **Supprimer cette application** | `nimbus services delete 123 --yes` | Le propriétaire du projet ou un administrateur | Immédiat, avec reprise automatique en arrière-plan si besoin | Non, la suppression est irréversible |
+
+## Avant de commencer
+
+- Vérifiez que vous êtes bien sur la page du bon service, car le nom affiché dans le dialogue est votre seul garde-fou.
+- Retrouvez l'identifiant du service avec `nimbus services list --json`, où `123` dans les exemples est cet identifiant.
+- Exportez ce que vous voulez garder, car les variables, les secrets et les artefacts du service disparaissent avec lui.
+- Si l'application utilise une base PostgreSQL, Nimbus tente d'abord une sauvegarde préalable : si elle échoue, la suppression s'interrompt et vous choisissez de réessayer ou de supprimer sans sauvegarde.
+
+<Warning>La suppression est irréversible. Nimbus détruit l'application et ses ressources, et vous ne pourrez pas les récupérer après confirmation.</Warning>
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez les paramètres">
+Ouvrez la page de votre service, puis cliquez sur l'onglet **Paramètres**. Trouvez la carte **Supprimer cette application**, qui rappelle que l'application et ses ressources seront supprimées.
+</Step>
+<Step title="Demandez la suppression">
+Cliquez sur **Supprimer l'application**. Le dialogue intitulé `Supprimer « <NOM> » ?` s'ouvre, où `<NOM>` est le nom de votre application affiché pour vérification.
+</Step>
+<Step title="Confirmez définitivement">
+Cliquez sur **Annuler** si vous hésitez. Cliquez sur **Supprimer définitivement** si vous êtes sûr, car Nimbus sauvegarde d'abord la base s'il y en a une, puis détruit les ressources.
+</Step>
+<Step title="Gérez la sauvegarde préalable">
+Si la sauvegarde préalable échoue, le dialogue affiche `La sauvegarde préalable a échoué.` Cliquez sur **Réessayer la sauvegarde** pour relancer la sauvegarde. Cliquez sur **Supprimer sans sauvegarde** si vous acceptez de perdre les données récentes, puis confirmez avec **Confirmer la suppression sans sauvegarde** dans le dialogue `Supprimer sans sauvegarde ?`
+</Step>
+<Step title="Supprimez seulement la base si besoin">
+Pour garder l'application et retirer sa base, ouvrez l'onglet **PostgreSQL** de la page du service. Cliquez sur **Supprimer PostgreSQL**, puis confirmez avec **Supprimer la base** dans le dialogue `Supprimer PostgreSQL ?`
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Supprimez le service">
+```sh
+nimbus services delete 123 --yes
+```
+Elle tente d'abord une sauvegarde préalable, puis supprime le service et attend jusqu'à dix minutes environ. L'option `--yes` est obligatoire et vaut accord explicite. Si la sauvegarde préalable échoue, la commande échoue : relancez-la, ou passez par l'interface pour supprimer sans sauvegarde.
+</Step>
+<Step title="Vérifiez la disparition">
+```sh
+nimbus services list --json
+```
+Elle renvoie vos services restants. Votre application ne doit plus y figurer une fois la suppression terminée.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La page du service devient inaccessible et l'application disparaît de la liste des projets.
+- L'URL publique ne répond plus une fois la suppression propagée.
+- En CLI, `nimbus services list --json` ne renvoie plus le service supprimé.
+- Votre dépôt GitLab reste disponible, car Nimbus ne touche jamais à votre code.
+
+## Limites
+
+- Nimbus retire l'application déployée, ses variables, ses secrets et ses artefacts, ainsi que la base PostgreSQL et son stockage, puis retire le projet du catalogue et désactive le redéploiement automatique.
+- Nimbus conserve uniquement votre dépôt GitLab, qui reste disponible après la suppression.
+- La suppression de la base PostgreSQL retire aussi son stockage, donc vos données sont perdues sans sauvegarde récente.
+- Une suppression déjà lancée continue en arrière-plan avec reprise automatique, même si votre commande semble terminée.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `La sauvegarde préalable a échoué.` | La sauvegarde avant suppression n'a pas abouti | Cliquez sur **Réessayer la sauvegarde**, ou choisissez **Supprimer sans sauvegarde** puis **Confirmer la suppression sans sauvegarde** |
+| « sauvegarde de la base avant suppression échouée ; réessayez, ou confirmez la suppression sans sauvegarde (skip_backup=true) » (502) | La sauvegarde avant suppression n'a pas abouti, en CLI | Relancez la commande, ou passez par l'interface pour supprimer sans sauvegarde |
+| `suppression du service en cours` (409) | Une suppression de ce service tourne déjà | Patientez : elle reprend automatiquement, puis vérifiez avec `nimbus services list --json` |
+| `suppression en cours, reprise automatique prévue` (502) | La suppression se poursuit en arrière-plan après un échec intermédiaire | Patientez sans relancer de suppression, puis vérifiez la disparition du service |
+| `suppression non commencée : cible ou gestion Kubernetes indisponible` (503) | La suppression n'a pas pu démarrer | Réessayez plus tard |
+| `Token GitLab non configuré. Rendez-vous dans vos paramètres.` (403) | Votre jeton GitLab est absent ou invalide | Enregistrez votre jeton GitLab, puis relancez la suppression |
+| `service introuvable` (404) | L'identifiant est inconnu ou le service est déjà parti | Vérifiez l'identifiant avec `nimbus services list --json` |
+
+## Pour un agent
+
+1. Demandez l'accord explicite de l'utilisateur avant toute suppression, car l'action est irréversible.
+2. Confirmez le nom de l'application et son identifiant `123` avant de lancer `nimbus services delete 123 --yes`.
+3. Si la sauvegarde préalable échoue, arrêtez-vous et proposez soit de réessayer, soit de supprimer sans sauvegarde après un nouvel accord explicite.
+4. Constatez le résultat avec `nimbus services list --json` et confirmez que le dépôt GitLab est conservé.
+
+## Voir aussi
+
+- [Comprendre l'état de votre application](/plateforme/etats)
+- [Sauvegarder et restaurer votre base](/plateforme/sauvegardes)
+- [Redéployer votre application](/plateforme/redeployer)

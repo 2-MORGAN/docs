@@ -1,0 +1,136 @@
+---
+title: "Déployer avec la génération IA"
+description: "Faites analyser un dépôt non reconnu par l'IA, examinez la proposition, approuvez-la puis déployez."
+keywords: ["génération IA", "proposition IA", "framework non pris en charge", "preview", "approve"]
+---
+
+Votre dépôt utilise un langage ou un montage que Nimbus ne reconnaît pas. L'IA rédige alors les fichiers de déploiement à votre place. Vous examinez sa proposition fichier par fichier, vous l'approuvez, puis vous déployez. Vous partez de rien : la CLI n'est pas installée et aucun compte GitLab n'est relié.
+
+<Note>Choix assumé : les exemples ciblent `k3s-oracle`. La proposition IA expire au bout de vingt minutes : si le code change entre l'analyse et le déploiement, vous recommencez l'analyse.</Note>
+
+## Avant de commencer
+
+Vous avez besoin d'un compte Nimbus et d'un compte sur `gitlab.cri.epita.fr`. Votre dépôt existe déjà et votre code est poussé sur sa branche principale : l'analyse lit le dépôt distant, jamais votre machine. Aucun framework officiel ne prend votre dépôt en charge. La génération IA doit être disponible : vérifiez-le avant de commencer. Si vous partez d'un dossier local sans dépôt, créez d'abord le dépôt sur `gitlab.cri.epita.fr` et poussez-y votre code : la création depuis Nimbus refuse la génération IA sur un dépôt neuf. La recette complète figure dans [Déployer n'importe quelle autre application](/parcours/autre-application).
+
+- Vérifiez votre session avec `nimbus auth whoami` : elle répond sans erreur quand vous êtes connecté.
+- Vérifiez la génération avec la commande suivante. Elle répond si l'analyse IA est activée.
+```sh
+nimbus services generation capabilities --json
+```
+- Vérifiez votre dépôt avec `nimbus gitlab repositories --json` : il y figure une fois le token posé.
+
+## Parcours
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Connectez-vous et reliez GitLab">
+Ouvrez `https://cnp.2morgan.fun` dans votre navigateur. Cliquez sur **Se connecter** et validez sur la page Keycloak. Ouvrez ensuite **Paramètres**, carte **GitLab EPITA**. Cliquez sur **Ajouter un token GitLab**. Créez le token sur `gitlab.cri.epita.fr` avec les scopes `api` et `read_user`. Collez-le dans le champ **Token GitLab**, choisissez une **Date d'expiration** future, puis cliquez sur **Ajouter**.
+</Step>
+<Step title="Lancez l'analyse">
+Cliquez sur **Nouveau projet** depuis la page **Mes projets**. À l'étape **Choisir un dépôt GitLab**, sélectionnez votre dépôt. Quand le message « Ce framework n'est pas pris en charge par Nimbus. Vous pouvez faire générer les fichiers de déploiement. » apparaît, cliquez sur **Générer avec l'IA**. Le dialogue **Analyser le dépôt avec l'IA ?** s'affiche : il explique que Nimbus envoie des éléments de votre dépôt à l'IA. Cliquez sur **Analyser le dépôt**. Patientez jusqu'à deux minutes.
+</Step>
+<Step title="Examinez la proposition">
+Le panneau **Proposition IA** affiche trois onglets : **Dockerfile**, **Image de build** et **Commandes CI**. Ouvrez chaque onglet et lisez-le. Cliquez sur **J'ai examiné ce fichier** pour chaque fichier relu. Cochez ensuite la case **J'ai examiné le Dockerfile, les commandes exécutables générées et leurs permissions dans la CI**. Le badge passe à **Prête à approuver** quand tout est relu.
+</Step>
+<Step title="Approuvez et déployez">
+La proposition est approuvée quand la case du panneau est cochée et le badge affiche **Prête à approuver**. Passez à l'étape **Préparer le projet**. Cochez **Déployer ce dépôt maintenant**, sinon le projet est seulement créé sans déploiement. Choisissez votre **Cible de déploiement**. Cliquez sur **Déployer l'application**. La mention **Déploiement en cours** s'affiche et le pipeline démarre. L'opération peut prendre jusqu'à dix minutes.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Installez et connectez la CLI">
+Sur macOS ou Linux, lancez la commande suivante. Elle installe Nimbus dans `~/.local/bin`, sans `sudo`.
+```sh
+curl -fsSL https://github.com/2-MORGAN/docs/releases/latest/download/install.sh | sh
+```
+Connectez-vous ensuite avec la commande suivante. Elle ouvre votre navigateur avec un code pré-rempli : validez dans le navigateur.
+```sh
+nimbus auth login
+```
+Elle affiche `Connecté : <UTILISATEUR> (<ENDPOINT>)`. Vérifiez avec `nimbus auth whoami`.
+</Step>
+<Step title="Enregistrez votre token GitLab">
+Créez un token sur `gitlab.cri.epita.fr` avec les scopes `api` et `read_user`. Enregistrez-le dans un fichier privé, par exemple `pat.txt`, puis lancez la commande suivante.
+```sh
+nimbus pat set --token-file pat.txt --expires-at 2027-01-31 --yes
+```
+Elle répond avec votre nom GitLab. Supprimez ensuite `pat.txt`.
+</Step>
+<Step title="Prévisualisez le plan généré">
+Retrouvez l'identifiant numérique de votre dépôt avec `nimbus gitlab repositories --json`. Dans la suite, `123` désigne cet identifiant : remplacez-le par le vôtre. Lancez ensuite l'analyse avec la commande suivante. Elle écrit la proposition dans `preview.json`.
+```sh
+nimbus services generation preview --repository-id 123 --output ./preview.json
+```
+Elle peut prendre jusqu'à deux minutes. Le fichier `preview.json` contient la proposition, un jeton d'examen et sa date d'expiration. Stockez le jeton dans une variable, sans jamais l'afficher.
+```sh
+REVIEW_TOKEN="$(jq -r .review_token ./preview.json)"
+```
+L'examen attentif que l'interface impose n'existe pas en CLI : relisez vous-même le Dockerfile et les commandes proposés avec `jq .proposal ./preview.json` avant d'approuver.
+</Step>
+<Step title="Approuvez le plan">
+Créez un fichier `plan.json` avec le contenu exact suivant, en adaptant l'identifiant à votre dépôt. Il décrit le déploiement que vous approuvez. La clé `plan` est obligatoire : la commande `approve` l'exige dans le corps de sa requête (le détail des champs figure sur la [page de référence](/plateforme/generation-ia)).
+```json
+{
+  "plan": {
+    "repository_id": 123,
+    "framework": "generated",
+    "cluster_id": "k3s-oracle"
+  }
+}
+```
+Approuvez avec la commande suivante. Elle écrit le jeton d'approbation dans `approval.json`.
+```sh
+nimbus services generation approve --preview-token "$REVIEW_TOKEN" --approved --input ./plan.json --output ./approval.json
+```
+</Step>
+<Step title="Déployez avec le jeton d'approbation">
+Stockez le jeton d'approbation dans une variable, sans jamais l'afficher.
+```sh
+APPROVAL_TOKEN="$(jq -r .approval_token ./approval.json)"
+```
+Lancez ensuite le déploiement avec la commande suivante, avec les mêmes valeurs que `plan.json`.
+```sh
+nimbus services configure --repository-id 123 --framework generated --cluster-id k3s-oracle --generated-review-token "$APPROVAL_TOKEN"
+```
+Elle attend la fin du pipeline et de la synchronisation, jusqu'à dix minutes. Le plan déployé doit être identique au plan approuvé : toute modification du dépôt entre-temps exige une nouvelle analyse.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Dans l'interface, le panneau **Proposition IA** affiche le badge **Approuvée** après votre approbation.
+- En CLI, le fichier `approval.json` contient un jeton d'approbation et sa date d'expiration.
+- Dans les deux cas, la fiche du projet affiche l'application avec le badge **En ligne** une fois le déploiement terminé. La commande suivante affiche l'état du service créé.
+```sh
+nimbus services status 123 --json
+```
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `ce framework est pris en charge par Nimbus ; utilisez sa configuration native` | Le dépôt est déjà reconnu, l'IA est inutile | Déployez normalement sans l'IA, avec la détection automatique |
+| `les sources ont changé ; générer et examiner une nouvelle proposition` | Le dépôt a bougé entre l'analyse et l'approbation | Relancez `generation preview`, réexaminez la proposition et approuvez à nouveau |
+| `aperçu invalide ou expiré` | La proposition a dépassé vingt minutes | Relancez l'analyse depuis le début |
+| `générer et examiner la proposition avant le déploiement` | Déploiement tenté sans approbation | Passez d'abord par l'analyse puis l'approbation, avec un jeton frais |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur : le dépôt source, la cible voulue, et l'accord explicite pour envoyer des éléments du dépôt à l'IA.
+2. Relisez toujours la proposition (`preview.json`) et montrez à l'utilisateur ce qu'elle va exécuter, surtout les commandes CI et leurs permissions.
+3. N'approuvez jamais sans l'accord explicite de l'utilisateur après examen : l'approbation n'est qu'une signature, le déploiement suit.
+4. Constatez chaque étape : `generation capabilities --json` pour la disponibilité, `approval.json` pour l'approbation, `nimbus services status 123 --json` pour le résultat.
+
+## Voir aussi
+
+- [Déployer un dépôt existant](/parcours/depot-existant)
+- [Comprendre un échec de déploiement](/parcours/logs-et-pannes)
+- [Exposer votre application en HTTPS](/parcours/exposer-application)

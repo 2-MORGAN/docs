@@ -1,0 +1,126 @@
+---
+title: "Suivre et allouer les crédits (admin)"
+description: "Depuis la page Administration, suivez la consommation des crédits et ajustez réglages et allocations."
+keywords: ["administration", "crédits", "allocation", "seuil", "consommation", "réglages"]
+---
+
+## En bref
+
+Vous suivez la consommation de la plateforme, puis vous ajustez les réglages communs ou l'allocation d'un utilisateur.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Menu **Administration**, section **Crédits** de `/dashboard/admin` | `nimbus admin credits get --threshold 90` ; `nimbus admin credits settings get` et `nimbus admin credits settings set` ; `nimbus admin credits users get <SUB>` et `nimbus admin credits users set <SUB> --kind bonus --credits 300 --reason "<MOTIF>"` | Rôle plateforme `admin` | Immédiat | Oui, modifiez à nouveau les réglages ou l'allocation |
+
+Dans les exemples, `<SUB>` désigne l'identifiant Keycloak de l'utilisateur (champ `sub`, retrouvé avec `nimbus users search --query alice --json`) et `<MOTIF>` le motif conservé dans le journal. Ces commandes ne prennent pas `--cluster-id` : les crédits ne dépendent d'aucune cible.
+
+## Avant de commencer
+
+- Vous disposez du rôle plateforme `admin` et la page `/dashboard/admin` s'ouvre sans garde.
+- Les règles de calcul (conversion, blocage faute de crédits) vivent sur la page des crédits : cette page ne fait que piloter.
+- Pour la CLI, vous êtes connecté (`nimbus auth login`) avec un compte administrateur. Ajoutez `--json` pour un résultat lisible par script. L'option `--input` prend un fichier ou `-` pour l'entrée standard.
+- Le moteur des crédits doit être activé : sinon la section répond que les crédits sont indisponibles.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la section Crédits">
+Dans le menu, cliquez sur **Administration**. La section **Crédits** affiche le mois et le total consommé. Cliquez sur **Actualiser les crédits** pour relire les chiffres. Le sélecteur **Seuil signalé** choisit les projets mis en avant (50, 70, 80, 90 ou 95 %).
+</Step>
+<Step title="Lisez la consommation du mois">
+Les sous-panneaux **Consommation du mois par poste**, **Utilisateurs qui consomment le plus** et **Projets qui consomment le plus** montrent où partent les crédits. Les sous-panneaux **Projets bloqués**, **Projets au-dessus de … %** et **Dépenses exceptionnelles des projets d'admins** signalent les projets en difficulté, où … est le seuil choisi.
+</Step>
+<Step title="Modifiez les réglages communs">
+Cliquez sur **Modifier**, ajustez les six réglages (**Allocation mensuelle par défaut (crédits)**, **Seuil d'alerte par défaut (%)**, **Crédits d'un test de charge**, **Seuil de projection des projets d'admins (crédits)**, **Facteur de dépense exceptionnelle**, **Plancher de dépense exceptionnelle (crédits)**) et le barème de chaque poste, puis cliquez sur **Enregistrer les réglages**. Le message **Réglages enregistrés.** confirme.
+</Step>
+<Step title="Allouez des crédits à un utilisateur">
+Dans le panneau **Allocation d'un utilisateur**, saisissez un nom dans **Nom d'utilisateur ou e-mail…** puis cliquez sur **Rechercher**. Choisissez le **Type** : **Ajout ponctuel ce mois-ci** ou **Nouvelle allocation mensuelle**. Saisissez le **Nombre de crédits** et le **Motif**, puis cliquez sur **Enregistrer l'allocation**. Le message **Allocation enregistrée.** confirme.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+Lisez le tableau de bord des crédits : consommation du mois, plus gros utilisateurs et projets, projets au-dessus du seuil, projets bloqués et dépenses exceptionnelles. Ici `90` désigne le seuil en pour cent.
+
+```bash
+nimbus admin credits get --threshold 90 --json
+```
+
+Lisez les réglages communs.
+
+```bash
+nimbus admin credits settings get --json
+```
+
+Modifiez les réglages passés ; un champ omis garde sa valeur. Les taux par poste passent par `--input`.
+
+```bash
+nimbus admin credits settings set --default-allocation 1000 --default-alert-percent 80 --json
+```
+
+```bash
+echo '{"rates":{"compute":100,"storage":100,"ai":100,"other":100}}' | nimbus admin credits settings set --input - --json
+```
+
+Retrouvez l'identifiant de l'utilisateur, puis lisez son compte de crédits du mois et le journal de ses allocations. Ici `<SUB>` désigne le champ `sub` renvoyé par la recherche.
+
+```bash
+nimbus users search --query alice --json
+```
+
+```bash
+nimbus admin credits users get <SUB> --json
+```
+
+Ajustez son allocation : `--kind monthly` fixe l'allocation mensuelle (sans `--credits`, retour à l'allocation par défaut), `--kind bonus` ajoute des crédits au mois en cours. Le motif est obligatoire.
+
+```bash
+nimbus admin credits users set <SUB> --kind bonus --credits 300 --reason "Projet de fin d'année" --json
+```
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Les totaux et les listes sont à jour après **Actualiser les crédits**.
+- **Réglages enregistrés.** suit chaque modification des réglages, **Allocation enregistrée.** chaque allocation.
+- La fiche de l'utilisateur reflète la nouvelle allocation dès la recherche suivante.
+- En CLI, `nimbus admin credits users get <SUB> --json` renvoie le compte et l'historique à jour.
+- Un nombre vide pour une **Nouvelle allocation mensuelle** ramène l'utilisateur au défaut commun.
+
+## Limites
+
+- L'allocation et les autres montants acceptent 0 à 10 000 000 crédits, l'alerte 1 à 99 %, le facteur de dépense exceptionnelle 1 à 100, chaque poste du barème 0 à 100 000.
+- L'ajout ponctuel impose un nombre strictement positif et un **Motif** de 500 caractères au plus.
+- Le seuil d'affichage accepte 1 à 100 ; sans choix, il reprend l'alerte par défaut. Hors borne, la lecture répond 400.
+- Les règles (valeur d'un crédit, actions refusées faute de crédits) restent décrites sur la page des crédits et ne changent pas ici.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `403 "réservé aux opérateurs"` | Rôle `admin` manquant | Demandez le rôle à un administrateur |
+| `400 "paramètre threshold entre 1 et 100 attendu"` | Seuil d'affichage hors borne | Choisissez un seuil entre 1 et 100 |
+| `422 "crédits entre 0 et 10 000 000"` | Montant hors borne | Saisissez un nombre entre 0 et 10 000 000 |
+| `422 "un ajout ponctuel demande un nombre de crédits positif"` | Ajout ponctuel nul ou vide | Saisissez un nombre strictement positif |
+| `422 "motif obligatoire (500 caractères au plus)"` | Motif manquant ou trop long | Renseignez un motif court |
+| `422 "kind vaut monthly ou bonus"` | Type d'ajustement inconnu | Choisissez `monthly` ou `bonus` pour `--kind` |
+| `503 "crédits indisponibles"` | Moteur des crédits désactivé | Prévenez l'équipe Nimbus |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur le nom de l'utilisateur concerné, le montant, le motif et le type (ponctuel ou mensuel). Attendez ici la réponse.
+2. Rappelez les bornes avant validation : 0 à 10 000 000 crédits, motif obligatoire de 500 caractères au plus, ajout ponctuel strictement positif.
+3. Retrouvez l'identifiant avec `nimbus users search --query <NOM> --json`, puis lisez le compte avec `nimbus admin credits users get <SUB> --json` et ajustez avec `nimbus admin credits users set` après accord explicite.
+4. Faites constater le compte mis à jour avec `nimbus admin credits users get <SUB> --json` puis **Actualiser les crédits** dans l'interface pour vérifier.
+
+## Voir aussi
+
+- [Gérer vos crédits](/plateforme/credits)
+- [Notifications et alertes](/plateforme/notifications)
+- [Coût et budget](/plateforme/cout-et-budget)

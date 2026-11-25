@@ -1,0 +1,119 @@
+---
+title: "Redéployer votre application et automatiser le redéploiement"
+description: "Relancez le pipeline de votre application avec le bouton Redéployer, puis activez le redéploiement après chaque push."
+keywords: ["redéployer", "redéploiement automatique", "pipeline", "ArgoCD", "push"]
+---
+
+## En bref
+
+Vous republiez votre application après une modification, puis vous laissez Nimbus redéployer seul à chaque push si vous le souhaitez.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Onglet **Déploiement** de la page du service | `nimbus services redeploy 123`, `nimbus services auto-redeploy get 123`, `nimbus services auto-redeploy set 123 --enabled=true` | Lecture pour tout membre du projet ; redéploiement et automatisme pour les propriétaires et membres (droit d'opération) | Synchrone : la commande attend la fin du pipeline et de la synchronisation, dix minutes au plus | Oui, vous pouvez relancer un redéploiement ou couper l'automatisme à tout moment |
+
+## Avant de commencer
+
+- Vérifiez que vous êtes connecté et que vous voyez votre application dans vos projets.
+- Retrouvez l'identifiant du service avec `nimbus services list --json`, où `123` dans les exemples est cet identifiant.
+- Vérifiez que l'application est déjà déployée, car un projet seulement préparé n'a rien à redéployer.
+- Si votre application a été générée par IA, examinez d'abord les fichiers générés dans le parcours de configuration, sinon le redéploiement est refusé.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez l'onglet Déploiement">
+Ouvrez la page de votre service, puis cliquez sur l'onglet **Déploiement**. Vous voyez le bouton **Redéployer** et l'état du dernier pipeline.
+</Step>
+<Step title="Cliquez sur Redéployer">
+Cliquez sur **Redéployer** pour relancer le pipeline avec le code actuel. Si votre application a été générée par IA, le bouton s'appelle **Examiner et redéployer** et vous ramène au parcours de configuration pour relire les fichiers proposés. Pendant l'opération, l'interface affiche **Redéploiement en cours**.
+</Step>
+<Step title="Attendez le message de succès">
+Attendez la fin de l'opération sans fermer l'onglet. Quand tout se passe bien, l'interface affiche `Pipeline réussi. Synchronisation ArgoCD terminée.`, ou `Déploiement publié sur Cloudflare.` sur une cible edge. Votre application tourne alors sur la nouvelle version.
+</Step>
+<Step title="Activez le redéploiement après chaque push">
+Restez dans l'onglet **Déploiement** et trouvez la carte **Redéploiement automatique**. Cochez la case **Redéployer après chaque push** pour que chaque push sur la branche par défaut redéploie l'application comme le bouton **Redéployer**. Décochez la case pour revenir au mode manuel.
+</Step>
+<Step title="Suivez les derniers passages automatiques">
+Sous la case, lisez la ligne qui commence par `Les redéploiements sont faits au nom de`, qui rappelle quel compte a activé l'automatisme. Lisez aussi le dernier statut, affiché avec `Réussi`, `Échoué` ou `Non lancé`, et la mention `Un push attend son redéploiement.` quand un push est en file d'attente.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Relancez le pipeline">
+```sh
+nimbus services redeploy 123
+```
+Elle relance le pipeline GitLab puis la synchronisation ArgoCD, et elle attend la fin jusqu'à dix minutes environ. En cas de succès, elle répond `Redéploiement traité pour #123. Vérifier avec : nimbus services status 123`. Ne l'interrompez pas ; en cas de coupure réseau, vérifiez l'état avant de relancer, car l'interruption n'annule pas forcément l'opération côté serveur.
+</Step>
+<Step title="Consultez l'automatisme">
+```sh
+nimbus services auto-redeploy get 123
+```
+Elle affiche la configuration actuelle, avec le champ d'activation, le dernier statut et l'auteur du réglage. Utilisez-la avant de modifier quoi que ce soit.
+</Step>
+<Step title="Activez l'automatisme">
+```sh
+nimbus services auto-redeploy set 123 --enabled=true
+```
+Elle active le redéploiement après chaque push sur la branche par défaut. Le corps envoyé vaut `{"enabled": true}`, et Nimbus pose alors un webhook sur votre dépôt GitLab.
+</Step>
+<Step title="Coupez l'automatisme">
+```sh
+nimbus services auto-redeploy set 123 --enabled=false
+```
+Elle coupe le redéploiement automatique et garde le redéploiement manuel. Le corps envoyé vaut `{"enabled": false}`.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+<Note>Si aucun réglage d'automatisme n'existe encore, le redéploiement crée le réglage par défaut. Un refus explicite reste mémorisé et n'est jamais réactivé.</Note>
+
+## Vérifier
+
+- L'onglet **Déploiement** affiche `Pipeline réussi. Synchronisation ArgoCD terminée.` après un redéploiement manuel réussi, ou `Déploiement publié sur Cloudflare.` sur une cible edge.
+- La carte **Redéploiement automatique** affiche la case cochée et un statut `Réussi`, `Échoué` ou `Non lancé` pour le dernier passage.
+- En CLI, `nimbus services auto-redeploy get 123` renvoie l'activation et le dernier statut, et la page du service montre la nouvelle version en ligne.
+- Si un push attend son tour, l'interface affiche `Un push attend son redéploiement.`
+
+## Limites
+
+- Le redéploiement manuel est synchrone et dure jusqu'à dix minutes environ : prévoyez ce délai avant de relancer une autre opération.
+- Si la plateforme ne peut pas recevoir les webhooks GitLab, la carte **Redéploiement automatique** n'apparaît pas et l'activation répond 503.
+- Le redéploiement automatique ne suit que les push sur la branche par défaut du dépôt, pas les autres branches.
+- Si des fichiers générés par IA attendent votre relecture, le redéploiement manuel et automatique restent bloqués.
+- L'automatisme exige que la plateforme expose son adresse publique, sinon l'activation échoue.
+- Le webhook GitLab est posé au nom de la personne qui active l'automatisme, et le moteur revérifie ce droit à chaque passage.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `examinez les fichiers IA avant de redéployer depuis le parcours de configuration` (409) | Des fichiers générés par IA attendent votre relecture | Ouvrez le parcours de configuration, examinez les fichiers, puis cliquez sur **Examiner et redéployer** |
+| `corps invalide` avec `{"enabled": true}` attendu (400) | Le corps de la requête d'automatisme est mal formé | Renvoyez exactement `{"enabled": true}` ou `{"enabled": false}`, ou utilisez `--enabled=true` ou `--enabled=false` |
+| 403 `accès refusé` | Votre rôle sur le projet ne donne pas le droit d'opération | Demandez à un propriétaire ou à un membre d'agir |
+| 409 `changement d’état en cours ; réessayez après la synchronisation` | Un démarrage, un arrêt ou une autre opération verrouille le projet | Attendez la stabilisation de l'état, puis réessayez |
+| `configurez d'abord le service` (409) | Le service n'est pas encore configuré | Terminez d'abord la configuration du service, puis réactivez l'automatisme |
+| `mise à jour du webhook GitLab échouée` (502) | Nimbus n'a pas pu poser le webhook sur le dépôt | Vérifiez l'accès GitLab du projet, puis relancez `nimbus services auto-redeploy set 123 --enabled=true` |
+| `GitLab refuse la gestion des webhooks du projet : le rôle Maintainer est requis` (502) | Votre compte GitLab n'a pas le rôle requis sur le projet | Demandez le rôle Maintainer sur le projet GitLab, puis réessayez |
+| `redéploiement automatique non configuré sur cette plateforme` (503) | La plateforme n'expose pas l'adresse nécessaire au webhook | Prévenez l'équipe Nimbus et gardez le redéploiement manuel en attendant |
+
+## Pour un agent
+
+1. Demandez l'identifiant du service et vérifiez-le avec `nimbus services auto-redeploy get 123` avant de changer quoi que ce soit.
+2. Si le redéploiement est refusé avec le message sur les fichiers IA, arrêtez-vous et demandez à l'utilisateur de relire les fichiers générés.
+3. Annoncez l'activation ou la coupure de l'automatisme avant de lancer `set`, car elle modifie le comportement à chaque push.
+4. Constatez le résultat avec `get` et avec l'état du service, puis montrez le statut `Réussi`, `Échoué` ou `Non lancé`.
+
+## Voir aussi
+
+- [Comprendre l'état de votre application](/plateforme/etats)
+- [Sauvegarder et restaurer votre base](/plateforme/sauvegardes)

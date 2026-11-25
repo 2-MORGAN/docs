@@ -1,0 +1,55 @@
+---
+title: Règles pour les agents
+description: Demandez les bons accords, protégez les secrets et reprenez proprement après une erreur.
+keywords: [agent, accord, secret, reprise, erreur, idempotence, destructif]
+---
+
+Vous agissez pour le compte d'un humain et chaque action sensible exige son accord. Cette page fait foi pour les autorisations. Les autres pages y renvoient au lieu de répéter les règles.
+
+## Ce que vous demandez avant d'agir
+
+Posez vos questions avant d'exécuter, pas après. Demandez à l'humain la cible de déploiement, le framework s'il est ambigu, et le niveau d'interruption acceptable avant toute opération qui redémarre l'application. Demandez le groupe de création avant un `services create`, et l'identifiant du dépôt avant un `services configure`. Pour une application déjà déployée, demandez confirmation avant de toucher à ses variables, à sa base ou à sa cible.
+
+<Warning>
+Après l'accord explicite de l'humain, vous pouvez transmettre la commande de rattachement par `ssh` sans l'afficher, ou l'humain l'exécute lui-même. Supprimez ensuite le fichier généré, qui contient un jeton personnel.
+</Warning>
+
+## Ne confondez pas les identifiants
+
+Deux nombres circulent et ils ne sont pas interchangeables. L'identifiant du projet désigne une application : c'est l'identifiant du projet GitLab, que vous lisez dans le champ `gitlab_id` de `nimbus services list --json` et dans le champ `id` de `nimbus gitlab repositories --json`. Presque toutes les commandes l'attendent en premier argument (`status 123`, `env list 123`), et `services configure` ainsi que `services generation preview` le reçoivent avec l'option `--repository-id`. L'identifiant du groupe (`--namespace-id`) désigne le groupe GitLab où créer un dépôt : vous le lisez dans le champ `id` de `nimbus gitlab namespaces --json`, et seul `services create` l'attend.
+
+Un mauvais identifiant de service répond 404 « service introuvable », ou 404 « projet introuvable » pour `env` et `prod-vault`. Un mauvais identifiant de groupe sur `services create` répond 403 « groupe GitLab non autorisé : choisissez un groupe où vous êtes Maintainer ».
+
+## Accords obligatoires
+
+Les opérations suivantes sont interdites sans l'accord explicite de l'humain, donné pour cette opération précise.
+
+- Toute exécution en root sur un serveur, y compris la commande de rattachement d'un VPS.
+- Tout flag `--yes` et toute commande destructive : suppression de service, de variable, de base, de sauvegarde, de VPS ou retrait d'un framework.
+- Tout import ou resynchronisation du coffre de production (`prod-vault import`, `prod-vault resync`), car l'application redémarre et les valeurs absentes du fichier sont retirées. À l'inverse, `env push` ne touche jamais l'application déployée : il remplace seulement le fichier partagé du coffre de développement.
+- Toute rotation de secret applicatif, car l'ancien secret cesse de fonctionner immédiatement.
+- Tout changement de cible d'une application déjà déployée, car l'URL et le comportement réseau peuvent changer.
+
+Un accord général comme « fais ce qu'il faut » ne couvre jamais ces cas. Reformulez l'opération exacte et attendez un oui clair.
+
+## Secrets : ne jamais lire ni afficher
+
+Ne lisez jamais une valeur de secret et ne l'affichez jamais dans vos réponses, vos journaux ou vos rapports. Ne passez jamais un secret en argument de commande. Utilisez `--value-file` pour une variable, `--token-file` pour un jeton de connexion et `--dotenv-file` pour un coffre. Écrivez les réponses brutes vers un fichier avec `--output` au lieu de les afficher. Ne stockez aucun secret dans vos fichiers de travail et supprimez le fichier de rattachement VPS après usage.
+
+Concrètement, l'humain écrit lui-même la valeur dans un fichier privé hors du dépôt Git, vous donnez ce chemin à la commande sans ouvrir le fichier, puis vous le supprimez avec son accord. Avant tout `git add`, vérifiez avec `git status` qu'aucun fichier de secret (`.env`, jeton, `vps.json`) ni dossier de dépendances (`node_modules`) ne part dans le dépôt, et complétez `.gitignore` au besoin. Si l'humain vous colle un secret en clair dans la conversation, ne le répétez pas et invitez-le à le passer par un fichier.
+
+## Reprise après erreur ou délai dépassé
+
+Ne relancez jamais une commande qui a échoué ou dépassé son délai sans vérifier l'état réel. Le délai par défaut est de `30s`, et les opérations longues qui attendent le pipeline et la synchronisation patientent `10m` : le détail figure dans les [conventions de la CLI](/cli/conventions). Commencez par lire l'état avec `status`, `list` ou `get --json`, puis décidez. Une commande peut avoir réussi côté serveur malgré un délai dépassé côté client, et un second appel créerait un doublon ou écraserait un état plus récent.
+
+Appliquez l'idempotence : préférez lire puis ajuster plutôt que recréer. Ne relancez jamais un `configure` ou un `preview` périmé sans re-vérifier la révision du dépôt, car la proposition IA expire au bout de vingt minutes et toute modification des sources invalide l'approbation. Si vous recevez un `409`, relisez l'état actuel avant d'agir, car la ressource a changé entre-temps. Si vous recevez un `428`, faites examiner puis approuver le plan IA avant de déployer, au lieu de forcer le déploiement.
+
+## Codes de sortie et comportements
+
+La CLI rend `0` en cas de succès, `1` pour une erreur d'opération ou de réseau, `2` pour une erreur d'usage, `3` pour une session absente ou expirée et `4` pour un accès refusé. Avec `--json`, l'erreur arrive en JSON sur la sortie d'erreur. En cas de `3`, reconnectez-vous avant de continuer. En cas de `4`, vérifiez votre rôle avec `auth whoami` et demandez à l'humain les droits manquants au lieu d'insister.
+
+## Voir aussi
+
+- [Déroulé complet d'un agent](/agents/index)
+- [Recettes de commandes](/agents/recettes)
+- [Messages d'erreur](/depannage/messages)

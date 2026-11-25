@@ -1,0 +1,111 @@
+---
+title: "Consulter les journaux d'exécution de votre application"
+description: "Lisez les logs de votre application dans Nimbus : panneau Journaux d'exécution, filtres par période et niveau, ou commandes CLI."
+keywords: ["logs", "journaux", "journaux d'exécution", "observabilité", "debug", "niveau de log", "composant"]
+---
+
+## En bref
+
+Quand votre application se comporte bizarrement, ses journaux racontent ce qui se passe vraiment. Vous les lisez à l'écran ou en ligne de commande.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service, **Journaux** (groupe **Observabilité**), panneau **Journaux d’exécution** | `nimbus services observability logs` (recommandée) ou `nimbus services logs` (ancienne) | Tout membre du projet (lecture seule) | Immédiat | Oui, la lecture ne change rien |
+
+## Avant de commencer
+
+Vous avez besoin de trois choses, et chacune se vérifie en une commande.
+
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous connaissez l'identifiant du service (`<ID>`, par exemple `123`). Vous l'obtenez avec `nimbus services list --json`, qui affiche vos services.
+- Votre application est déployée. Si le projet n'a jamais été déployé, il n'y a tout simplement aucun journal à lire.
+
+<Note>Sur une cible edge (Cloudflare), le panneau des journaux n'existe pas : un site statique ne produit pas de journaux d'exécution côté serveur.</Note>
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+Sur la page de votre service, ouvrez **Journaux** dans le groupe **Observabilité**. Le panneau **Journaux d’exécution** affiche les lignes les plus récentes.
+
+<Steps>
+<Step title="Choisissez la période">
+Dans **Période**, sélectionnez **15 min**, **1 h**, **6 h** ou **24 h**. La période par défaut est **1 h**. Si vous cherchez un incident d'hier, passez directement à **24 h** : une période trop courte est la première cause des recherches qui ne donnent rien.
+</Step>
+<Step title="Choisissez le composant">
+Dans **Composant**, gardez **Application** pour les journaux de votre code, ou basculez sur **PostgreSQL** pour ceux de la base. L'option **PostgreSQL** n'a de sens que si votre service a une base gérée, sinon vous lisez du vide.
+</Step>
+<Step title="Filtrez par niveau">
+Dans **Niveaux**, cochez **Erreur**, **Avertissement**, **Info** ou **Debug** pour ne garder que ces lignes. Si vous ne cochez rien, tous les niveaux s'affichent, y compris les lignes sans niveau reconnu. Commencez par **Erreur** quand vous cherchez une panne.
+</Step>
+<Step title="Cherchez un mot">
+Tapez dans **Filtrer les logs** (le champ **Rechercher dans les journaux…**) un identifiant de requête, un nom de route ou un extrait d'erreur. La recherche accepte 256 caractères au plus et se lance après une courte pause pendant votre frappe.
+</Step>
+<Step title="Actualisez">
+Cliquez sur **Rafraîchir** pour relire les journaux. Les lignes trop longues sont coupées et marquées `[ligne tronquée]`.
+</Step>
+</Steps>
+
+Si une mention **Mesures partielles.** apparaît avec **Données du**, c'est normal : la plateforme vous prévient que les mesures sont incomplètes ou un peu anciennes, mais ce que vous lisez reste exploitable. Le détail vit dans la page [Santé et ressources](/plateforme/sante-et-ressources).
+
+</Tab>
+<Tab title="CLI">
+
+Deux commandes lisent les journaux, et elles ne sont pas équivalentes. La seconde est celle que l'interface utilise : préférez-la.
+
+La commande recommandée interroge la route actuelle, avec les mêmes filtres que l'interface :
+
+```sh
+nimbus services observability logs 123 --window 1h --limit 100 --level error --component app --json
+```
+
+Elle affiche les lignes avec leur horodatage, leur niveau et leur composant. Ici, `123` est l'identifiant du service, `--window` accepte `15m`, `1h`, `6h` ou `24h`, `--level` accepte `error`, `warn`, `info` ou `debug` et se répète pour combiner plusieurs niveaux, et `--component` accepte `app` ou `postgres`. Ajoutez `--filter` suivi d'un texte pour chercher un mot, comme dans le champ de recherche de l'interface.
+
+L'ancienne commande existe toujours, avec des filtres légèrement différents :
+
+```sh
+nimbus services logs 123 --since 1h --limit 100 --filter ERROR --json
+```
+
+Elle affiche chaque ligne avec son horodatage et son texte. Ici, `--since` est une durée libre (par exemple `30m`), `--limit` accepte 1 à 5000 lignes, et `--filter` cherche un texte. Gardez-la pour vos vieux scripts, mais écrivez les nouveaux avec `observability logs`.
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+Dans l'interface, vous voyez défiler des lignes horodatées pendant que **Chargement des logs…** disparaît. En CLI, la commande se termine sans erreur et affiche des entrées avec `timestamp` et `line`. Si la période ne contient rien, la réponse précise pourquoi (`empty_reason`) : `no_data` quand il n'y a vraiment rien, `stopped` quand l'application est arrêtée, `too_recent` quand le déploiement est trop frais pour avoir produit des lignes, `not_deployed` quand rien n'est déployé, ou `cluster_unavailable` quand l'environnement est injoignable.
+
+## Limites
+
+- L'interface affiche 500 lignes au plus par lecture. En CLI, `--limit` accepte 1 à 5000 lignes (500 par défaut).
+- Les fenêtres de lecture sont fixes : `15m`, `1h`, `6h`, `24h` pour les journaux. Il n'y a pas de fenêtre à 7 jours ici, contrairement aux ressources.
+- La recherche ne dépasse pas 256 caractères, et le composant `postgres` exige une base PostgreSQL gérée sur le service.
+- La lecture est plafonnée côté serveur (60 requêtes par minute) : si vous actualisez en boucle, vous serez ralenti avant d'être bloqué.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Paramètre invalide.` (code `invalid_parameter`) | Fenêtre, limite, filtre, niveau ou composant hors bornes | Reprenez `15m`, `1h`, `6h` ou `24h`, une limite entre 1 et 5000, un niveau parmi `error`, `warn`, `info`, `debug` et un composant parmi `app`, `postgres` |
+| `La requête a pris trop de temps. Essayez une période plus courte.` (code `upstream_timeout`) | Fenêtre trop large pour le backend | Réduisez `--window` ou la **Période**, puis réessayez |
+| `Vous n'avez pas accès à ce projet.` | Vous n'êtes pas membre du projet | Demandez à un propriétaire de vous ajouter, ou vérifiez l'identifiant du service |
+| `Session expirée, reconnectez-vous.` | Session de 24 h terminée | Reconnectez-vous, puis relancez la lecture |
+| `Le projet est en cours de création.` (code `service_not_ready`) | Le service n'est pas encore déployé | Attendez la fin du déploiement, puis relisez les journaux |
+| `impossible de récupérer les logs` (ancienne commande, erreur 502) | Le collecteur de journaux est injoignable | Réessayez avec `observability logs`, qui suit une autre route |
+
+La liste complète des messages, tous domaines confondus, vit dans la page [Messages d'erreur](/depannage/messages).
+
+## Pour un agent
+
+1. Demandez l'identifiant du service à l'utilisateur, ou trouvez-le avec `nimbus services list --json`. Attendez ici la réponse si l'utilisateur doit choisir.
+2. Lisez avec `nimbus services observability logs <ID> --window 1h --limit 100 --json` avant toute hypothèse sur une panne.
+3. N'élargissez `--window` à `24h` que si `1h` ne montre rien, et ne concluez jamais « il n'y a pas d'erreur » sans avoir essayé le niveau `error` seul.
+4. Ne demandez jamais à l'utilisateur de coller des secrets trouvés dans les journaux : diagnostiquez à partir des messages, pas des valeurs.
+
+## Voir aussi
+
+- [Santé et ressources](/plateforme/sante-et-ressources)
+- [Échecs de déploiement](/plateforme/echecs-de-deploiement)
+- [Messages d'erreur](/depannage/messages)

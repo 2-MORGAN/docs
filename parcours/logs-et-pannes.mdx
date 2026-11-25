@@ -1,0 +1,119 @@
+---
+title: "Diagnostiquer une panne avec les logs et la santé"
+description: "Votre application répond en erreur ou ne démarre plus : lisez les journaux, comprenez le diagnostic de déploiement et remettez le service en ligne."
+keywords: ["logs", "panne", "santé", "diagnostic de déploiement", "erreur 500", "redémarrer"]
+---
+
+Votre application renvoie des erreurs, ne répond plus ou refuse de se déployer. Vous allez localiser la cause à trois endroits : le panneau **Santé**, les **Journaux d'exécution** et le **Diagnostic de déploiement**.
+
+## Avant de commencer
+
+- Vous êtes connecté à Nimbus et vous voyez votre service dans la liste des projets. Dans ce parcours, son identifiant est `123` : retrouvez le vôtre avec `nimbus services list --json`.
+- Vous êtes membre du projet. La lecture suffit pour diagnostiquer, mais redéployer ou arrêter puis démarrer le service exigent le droit d'opération.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Constatez l'état de santé">
+Ouvrez la page de votre service et restez sur **Vue d'ensemble**. Le panneau **Santé** affiche un badge : **Sain**, **Dégradé**, **En panne**, **Démarrage**, **Arrêté** ou **Inconnu**. Si le panneau signale une **Erreur en cours** ou une **Dernière erreur**, cliquez sur **Voir les logs** pour rejoindre directement les journaux. Sans erreur signalée, ce lien n'apparaît pas : ouvrez alors **Journaux** vous-même.
+</Step>
+<Step title="Lisez les journaux d'exécution">
+Ouvrez **Journaux** dans le groupe **Observabilité**. Le panneau **Journaux d'exécution** propose trois filtres. **Période** propose **15 min**, **1 h**, **6 h** et **24 h** : commencez par **1 h**. **Composant** propose **Application** et **PostgreSQL**. **Niveaux** propose **Erreur**, **Avertissement**, **Info** et **Debug** : cochez **Erreur** pour ne garder que les erreurs. Quand aucun niveau n'est coché, tout s'affiche, y compris les lignes sans niveau reconnu. Le champ **Filtrer les logs** restreint l'affichage à un mot.
+</Step>
+<Step title="Première panne : l'application répond en erreur">
+L'application répondait hier et renvoie aujourd'hui des erreurs 500. Dans les journaux filtrés sur **Application** et **Erreur**, repérez la ligne qui signale une variable d'environnement fautive. Corrigez-la dans **Variables** (groupe **Configuration**, voir [Variables et secrets](/plateforme/variables)), puis cliquez sur **Redéployer**. Les nouvelles lignes d'**Erreur** cessent et le badge repasse à **Sain**.
+</Step>
+<Step title="Deuxième panne : le déploiement ne part pas ou échoue">
+Le déploiement reste bloqué ou échoue. Ouvrez **Déploiement** : le panneau affiche **Dernier déploiement échoué** avec l'étape fautive. Pour une étape **Pipeline GitLab**, cliquez sur **Voir le pipeline** ou **Ouvrir le job dans GitLab** pour lire le journal complet. Si le diagnostic évoque un jeton manquant ou refusé, enregistrez votre jeton GitLab dans vos paramètres, puis cliquez sur **Redéployer**.
+</Step>
+<Step title="Troisième panne : la base refuse les écritures">
+L'application démarre mais les écritures en base échouent. Ouvrez **Ressources et coûts** dans le groupe **Observabilité** : des **Redémarrages** qui augmentent confirment que le service boucle. Revenez sur **Vue d'ensemble**, arrêtez puis relancez l'application avec **Arrêter** et **Démarrer**, puis rouvrez les journaux avec le **Composant** **PostgreSQL** pour vérifier que la connexion réussit.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Constatez l'état de santé">
+```sh
+nimbus services observability health 123 --json
+```
+Elle renvoie l'état de santé du service `123`, avec le niveau de santé et les contrôles détaillés.
+</Step>
+<Step title="Lisez les journaux d'erreur">
+```sh
+nimbus services observability logs 123 --window 1h --level error --json
+```
+Elle renvoie les lignes d'erreur de la dernière heure, avec l'horodatage, le niveau et le composant de chaque ligne. Changez de période avec `15m`, `6h` ou `24h`, et ciblez la base avec `--component postgres`. Sans `--level`, vous recevez tous les niveaux, y compris les lignes sans niveau reconnu.
+</Step>
+<Step title="Essayez l'ancienne route si besoin">
+```sh
+nimbus services logs 123 --since 30m --limit 100 --json
+```
+Elle interroge l'ancienne route des journaux et renvoie jusqu'à 100 lignes des 30 dernières minutes. Préférez la commande de l'étape précédente : les filtres de l'ancienne commande sont plus limités.
+</Step>
+<Step title="Diagnostiquez un déploiement qui échoue">
+```sh
+nimbus services deployment-failure 123 --json
+```
+Elle renvoie le diagnostic du dernier déploiement échoué, avec son étape, son opération et sa raison, ou un objet vide quand le dernier déploiement a réussi.
+</Step>
+<Step title="Vérifiez l'état du pipeline">
+```sh
+nimbus services pipeline 123 --json
+```
+Elle renvoie le statut du dernier pipeline GitLab sur la branche de déploiement. Si elle répond `Configurez votre jeton GitLab dans vos paramètres pour consulter le pipeline.`, enregistrez votre jeton GitLab puis relancez-la.
+</Step>
+<Step title="Vérifiez l'état courant du service">
+```sh
+nimbus services status 123 --json
+```
+Elle renvoie l'état actuel et souhaité du service, la transition en cours et les erreurs remontées par Nimbus.
+</Step>
+<Step title="Redéployez après la correction">
+```sh
+nimbus services redeploy 123 --json
+```
+Elle relance un déploiement et renvoie le résultat de la demande. Utilisez-la après avoir corrigé la variable fautive ou reconfiguré votre jeton. La réponse ne garantit pas la santé finale de l'application, et l'opération peut durer jusqu'à dix minutes environ.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau **Santé** affiche **Sain** et la mention **Dernière erreur** a disparu.
+- Les journaux ne montrent plus de nouvelles lignes d'**Erreur** sur la **Période** **15 min**.
+- Le panneau affiche **Aucun échec depuis le dernier déploiement réussi.**
+- En CLI, `nimbus services observability health 123 --json` renvoie un état sain et `nimbus services status 123 --json` confirme l'état du service.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Configurez votre jeton GitLab dans vos paramètres pour consulter le pipeline.` | Jeton GitLab absent. | Enregistrez votre jeton GitLab, puis relancez. |
+| `Votre jeton GitLab ne permet pas de consulter ce pipeline.` | Jeton refusé par GitLab. | Vérifiez les droits de votre jeton sur le dépôt, puis réessayez. |
+| `La requête a pris trop de temps. Essayez une période plus courte.` | Fenêtre de lecture trop large. | Relancez avec une **Période** plus courte, par exemple **15 min**. |
+| `Vous n'avez pas accès à ce projet.` | Vous n'êtes pas membre du projet. | Demandez à un propriétaire de vous ajouter, ou vérifiez l'identifiant du service. |
+| `diagnostic de déploiement indisponible` | Stockage du diagnostic injoignable. | Attendez une minute et actualisez ; si le message persiste, prévenez l'équipe Nimbus. |
+| `impossible de récupérer les logs` | Le collecteur de journaux est injoignable (ancienne route). | Réessayez avec `observability logs`, qui suit une autre route. |
+
+## Pour un agent
+
+1. Demandez l'identifiant du service et le symptôme : erreur à l'exécution, déploiement bloqué ou écritures en base impossibles.
+2. Commencez par `nimbus services observability health 123 --json`, où `123` est l'identifiant du service.
+3. Pour une erreur à l'exécution, lisez les logs d'erreur et rapportez les lignes fautives avant de proposer une correction.
+4. Pour un déploiement bloqué, lisez `nimbus services deployment-failure 123 --json` puis `nimbus services pipeline 123 --json`. Ne redéployez qu'après correction de la cause et avec l'accord explicite de l'utilisateur.
+5. Ne modifiez jamais une variable ni un jeton sans l'accord explicite de l'utilisateur.
+6. Constatez le résultat avec `nimbus services status 123 --json` et rapportez l'état final.
+
+## Voir aussi
+
+- [Lire les journaux d'exécution](/plateforme/logs)
+- [Suivre la santé et les ressources](/plateforme/sante-et-ressources)
+- [Comprendre un échec de déploiement](/plateforme/echecs-de-deploiement)

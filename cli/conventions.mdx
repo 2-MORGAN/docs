@@ -1,0 +1,156 @@
+---
+title: "Conventions communes de la CLI Nimbus"
+description: "Apprenez une fois les habitudes partagées par toutes les commandes Nimbus : options globales, sélecteurs, codes de sortie, fichiers et confirmations."
+keywords: ["CLI Nimbus", "conventions", "options globales", "codes de sortie", "input output", "yes", "docs"]
+---
+
+## En bref
+
+Toutes les commandes Nimbus partagent les mêmes habitudes : options globales, sélecteurs interactifs, codes de sortie stables et règles strictes pour les fichiers et les suppressions. Vous les apprenez une fois ici et elles valent partout.
+
+## Les options globales
+
+Vous placez ces options avant la commande. Elles valent pour chaque commande, même quand la référence ne les répète pas.
+
+| Option | Effet | Exemple complet |
+| --- | --- | --- |
+| `--api <adresse>` | Vise une API précise | `nimbus --api https://api.2morgan.fun auth whoami` |
+| `--timeout <durée>` | Délai maximal par requête : `30s` par défaut, `10m` pour les opérations longues | `nimbus --timeout 60s auth whoami` |
+| `--no-input` | Coupe questions et sélecteurs, pour les scripts | `nimbus --no-input services list --json` |
+| `--no-color` | Coupe les couleurs, pour des logs propres | `nimbus --no-color services list` |
+| `--json` | Résultat JSON, coupe toujours l'interactif | `nimbus auth whoami --json` |
+
+La valeur `<adresse>` est l'adresse de l'API Nimbus, et la CLI réutilise par défaut celle de votre dernière connexion. La valeur `<durée>` s'écrit avec une unité, comme `30s` ou `10m`. Les opérations qui attendent la fin du pipeline GitLab et de la synchronisation ArgoCD patientent `10m` au lieu de `30s` : `services configure`, `services redeploy`, `services delete`, `services gateway set` et `services gateway delete`, `services postgres create` et `services postgres delete`, ainsi que `services generation preview`. Les sauvegardes PostgreSQL ont leurs propres délais : `15m` pour `backups create`, `30m` pour `backups restore`, `10m` pour `backups get`. Vous pouvez toujours passer un autre délai explicitement avec `--timeout`. L'option `--json` désactive les interactions à elle seule : combinée à une commande qui attend un identifiant, elle exige cet identifiant au lieu d'ouvrir un sélecteur.
+
+## Les sélecteurs interactifs
+
+Quand vous oubliez l'identifiant d'une application dans un terminal interactif, la CLI vous propose de le choisir avec un sélecteur intitulé `Choisir une application · <commande>`, par exemple `Choisir une application · logs`. Ce sélecteur n'apparaît qu'en terminal interactif, jamais avec `--json` ni `--no-input`.
+
+```sh
+nimbus services logs
+```
+
+Sans identifiant, cette commande ouvre le sélecteur dans un terminal interactif. Elle affiche la liste de vos applications, puis elle lit les journaux de celle que vous choisissez.
+
+```sh
+nimbus services logs 123 --json
+```
+
+Avec l'identifiant `123`, cette commande lit directement les journaux au format JSON. La valeur `123` est un exemple d'identifiant de projet GitLab, et vous obtenez le vôtre avec `nimbus services list --json` (champ `gitlab_id`) ou `nimbus gitlab repositories --json` (champ `id`). C'est le même nombre dans les deux commandes, et `services configure` ainsi que `services generation preview` le reçoivent avec l'option `--repository-id`. Seul l'identifiant du groupe (`--namespace-id`, attendu par `services create`) est un autre nombre. Retenez la règle : en script ou avec `--json`, vous fournissez toujours l'identifiant vous-même.
+
+## Les codes de sortie
+
+Chaque commande se termine avec un code que vos scripts peuvent tester.
+
+| Code | Signification | Geste à faire |
+| --- | --- | --- |
+| `0` | Succès | Rien à faire |
+| `1` | Échec d'opération, de réseau, de fichier ou de l'API | Lisez le message puis relancez |
+| `2` | Mauvais usage : option inconnue ou argument manquant | Relisez l'aide avec `--help` |
+| `3` | Session absente ou expirée, ou API qui répond `401` | Relancez `nimbus auth login` |
+| `4` | Opération interdite, car l'API répond `403` | Vérifiez vos rôles avec `nimbus auth whoami` |
+| `130` | Annulation par vous ou interruption du contexte | Relancez-la quand vous êtes prêt |
+
+Avec `--json`, les erreurs partent sur la sortie d'erreur au format `{"error":{"code","message","http_status"}}`, où `code` nomme l'erreur en toutes lettres (`usage`, `unauthenticated`, `not_found`), `message` explique l'échec et `http_status` rappelle le statut HTTP, absent pour une erreur locale. Vous testez le code de la commande précédente avec `echo $?` juste après l'appel.
+
+```sh
+nimbus admin bundles list --json
+echo $?
+```
+
+La première commande liste les propositions en revue au format JSON. La seconde affiche son code de sortie.
+
+## Les fichiers : `--input`, `--output` et `--*-file`
+
+La CLI ne fait jamais transiter vos secrets par la ligne de commande. Vous passez les contenus sensibles et les payloads par des fichiers.
+
+### Envoyer un payload avec `--input`
+
+L'option `--input` accepte un fichier ou `-` pour l'entrée standard, jamais du JSON collé dans la commande, avec 1 Mo au maximum.
+
+```json
+{
+  "windows": [
+    { "days": [1, 2, 3, 4, 5], "start": "08:00", "stop": "19:00" }
+  ]
+}
+```
+
+Ce `planning.json` ouvre votre application du lundi au vendredi, de 8 h à 19 h. Les jours suivent la norme ISO 8601 (`1` pour lundi, `7` pour dimanche) et le fuseau se règle avec `--timezone`. Adaptez les plages au schéma décrit dans la page /cli/commandes.
+
+```sh
+nimbus services availability set 123 --timezone Europe/Paris --enabled --input planning.json
+```
+
+Cette commande applique le fichier au projet `123`, votre identifiant de projet, avec le fuseau `Europe/Paris` et le planning activé. Vous pouvez obtenir le même résultat sans fichier temporaire en pipant votre JSON vers l'entrée standard.
+
+```sh
+echo '{"windows": [{"days": [1, 2, 3, 4, 5], "start": "08:00", "stop": "19:00"}]}' | nimbus services availability set 123 --input -
+```
+
+Le tiret `-` désigne l'entrée standard, utilisable une seule fois par commande.
+
+### Recevoir une réponse avec `--output`
+
+L'option `--output` écrit la réponse brute dans un fichier, jamais sur la sortie standard. Elle refuse le tiret `-` et les répertoires, et le dossier parent doit exister.
+
+```sh
+nimbus services generation preview --repository-id 123 --output preview.json
+```
+
+Cette commande enregistre l'aperçu dans `preview.json`, où `123` est l'identifiant GitLab de votre dépôt (`nimbus gitlab repositories --json` vous le donne). Si le fichier existe, ajoutez `--force` pour l'écraser.
+
+### Protéger un secret avec `--*-file`
+
+Les options en `--*-file` transmettent un secret lu depuis un fichier, et jamais en argument visible : `--token-file`, `--value-file`, `--webhook-url-file` et `--dotenv-file` suivent tous cette règle. Le fichier doit être un fichier régulier, jamais un lien symbolique, avec des droits `600`.
+
+```sh
+(umask 077; read -rs VALEUR && printf '%s' "$VALEUR" > ./secret.txt)
+nimbus services env create 123 --key API_KEY --value-file ./secret.txt
+```
+
+La première commande vous fait saisir votre valeur sans l'afficher et l'écrit dans `./secret.txt`, lisible par vous seul. Vous pouvez aussi écrire le fichier avec un éditeur de texte, hors de tout dépôt Git. La seconde crée la variable `API_KEY` sur le projet `123`, où `API_KEY` suit le format exigé avec `A-Z`, `0-9` et `_`. Vous pouvez supprimer le fichier après l'envoi.
+
+## Les commandes destructives demandent `--yes`
+
+Toute suppression définitive exige `--yes`. Sans elle, la CLI refuse avant tout appel réseau avec le code `2`. L'interface propose des dialogues équivalents, comme **Retirer**, mais la CLI ne connaît que `--yes`.
+
+```sh
+nimbus services delete 123 --yes
+```
+
+Cette commande supprime définitivement le projet `123`. Les commandes de lecture et de création n'acceptent jamais `--yes`, donc sa présence signale toujours une opération irréversible.
+
+## L'aide embarquée et la référence
+
+Vous retrouvez chaque commande depuis votre terminal, sans réseau et sans session.
+
+```sh
+nimbus help
+```
+
+Cette commande liste les groupes disponibles. Vous détaillez ensuite un groupe précis.
+
+```sh
+nimbus services list --help
+```
+
+Cette commande décrit la liste des applications, avec ses flags et ses exemples. Le guide embarqué fournit la même matière hors ligne.
+
+```sh
+nimbus docs --agent
+```
+
+Cette commande affiche le guide Markdown destiné aux agents. La variante suivante liste toutes les commandes feuilles au format JSON.
+
+```sh
+nimbus docs --commands | jq .
+```
+
+Lancez `nimbus docs` sans flag et la CLI rappelle l'usage avec le code `2`, par le message `Erreur : utiliser nimbus docs --agent ou nimbus docs --commands`. Sans `jq`, retirez `| jq .`.
+
+## Voir aussi
+
+- /cli/installation : installez la CLI avant d'apprendre ses conventions.
+- /cli/connexion : ouvrez votre session et enregistrez votre jeton GitLab.
+- /cli/commandes : explorez la référence complète générée depuis la CLI.

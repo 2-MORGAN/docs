@@ -1,0 +1,125 @@
+---
+title: "Créer le jeton GitLab (PAT)"
+description: "Créez votre jeton GitLab avec les scopes api et read_user, puis enregistrez-le dans Nimbus depuis l'interface ou la CLI."
+keywords: ["gitlab", "PAT", "jeton", "token", "api", "read_user", "glpat"]
+---
+
+## En bref
+
+Le PAT est le jeton personnel qui permet à Nimbus de lire vos dépôts GitLab et de déclencher vos pipelines. Vous le créez sur GitLab, puis vous l'enregistrez dans Nimbus.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Paramètres**, carte **GitLab EPITA** | `nimbus pat set --token-file ./pat.txt --expires-at <AAAA-MM-JJ> --yes` | Tout utilisateur connecté | Immédiat, remplace le précédent | Oui, en enregistrant un nouveau jeton |
+
+Ici, `<AAAA-MM-JJ>` est la date d'expiration que vous avez déclarée sur GitLab, par exemple `2027-01-31`. Elle doit se situer après aujourd'hui.
+
+## Avant de commencer
+
+Vous avez besoin d'un compte sur `gitlab.cri.epita.fr`. Connectez-vous-y une fois dans votre navigateur avant de suivre les étapes.
+
+Préparez aussi une date d'expiration future pour le jeton, par exemple dans un an. Nimbus refuse les dates déjà passées, et la modale exige au minimum le lendemain.
+
+## Créer le jeton sur GitLab
+
+<Steps>
+<Step title="Ouvrez les jetons d'accès">
+Sur `gitlab.cri.epita.fr`, ouvrez la page de vos jetons d'accès personnels depuis votre avatar.
+</Step>
+<Step title="Nommez le jeton">
+Dans le champ du nom, saisissez par exemple `nimbus`. Ce nom vous aide à reconnaître le jeton plus tard dans la liste.
+</Step>
+<Step title="Choisissez l'expiration">
+Renseignez une date d'expiration future. Notez-la exactement telle quelle : vous devrez la ressaisir dans Nimbus à l'étape suivante.
+</Step>
+<Step title="Cochez les scopes exacts">
+Cochez les cases `api` et `read_user`. Sans `api`, Nimbus ne peut pas lire vos dépôts ; sans `read_user`, il ne peut pas vérifier votre identité.
+</Step>
+<Step title="Créez et copiez le jeton">
+Créez le jeton. GitLab affiche la valeur du jeton, qui commence par `glpat-`. Copiez-la aussitôt dans un endroit sûr : GitLab ne la montrera plus jamais.
+</Step>
+</Steps>
+
+## Enregistrer le jeton dans Nimbus
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez les paramètres">
+Dans la barre de navigation, cliquez sur **Paramètres**. La carte **GitLab EPITA** résume l'état actuel : **Non enregistré**, **Token enregistré** ou **Date dépassée**.
+</Step>
+<Step title="Ouvrez la modale">
+Cliquez sur **Ajouter un token GitLab**, ou **Remplacer le token** si un jeton existe déjà. La modale rappelle les scopes attendus : créez un jeton avec les scopes `api` et `read_user`.
+</Step>
+<Step title="Collez le jeton et la date">
+Collez la valeur copiée sur GitLab dans le champ **Token GitLab**, puis renseignez la **Date d'expiration** avec la même date que sur GitLab. Le jeton lui-même ne sera jamais réaffiché : seul votre nom de compte GitLab restera visible.
+</Step>
+<Step title="Enregistrez">
+Cliquez sur **Ajouter** (ou **Enregistrer le nouveau token**). Le message `Le token GitLab a été enregistré avec succès.` confirme l'enregistrement, et la bannière **Token GitLab refusé** disparaît de la page **Mes projets**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Écrivez le jeton dans un fichier">
+Écrivez vous-même la valeur copiée sur GitLab dans un fichier privé, sans l'afficher dans l'historique du terminal. Vous tapez vous-même cette commande, ou vous écrivez le fichier avec un éditeur de texte :
+```sh
+(umask 077; read -rs VALEUR && printf '%s' "$VALEUR" > ./pat.txt)
+```
+Elle crée `./pat.txt` lisible par vous seul, hors de tout dépôt Git. Ici `glpat-...` désigne la valeur affichée par GitLab. Le fichier `./pat.txt` ne contient que le jeton.
+</Step>
+<Step title="Enregistrez le jeton">
+```sh
+nimbus pat set --token-file ./pat.txt --expires-at 2027-01-31 --yes
+```
+`--token-file` désigne le fichier créé à l'étape précédente, `--expires-at` reprend la date d'expiration déclarée sur GitLab au format `AAAA-MM-JJ`, et `--yes` confirme l'enregistrement. La commande affiche votre nom d'utilisateur GitLab en cas de succès.
+</Step>
+<Step title="Nettoyez et vérifiez">
+Supprimez le fichier, qui contient un secret, puis vérifiez le statut :
+```sh
+rm ./pat.txt
+nimbus pat status
+```
+La commande affiche le nom de votre compte GitLab et la date d'expiration enregistrée. Le jeton lui-même n'est jamais réaffiché.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+Dans l'interface, la carte **GitLab EPITA** affiche **Token enregistré** avec votre compte (`@<nom>`) et la date d'expiration déclarée. Sur la page **Mes projets**, les pipelines de vos projets s'affichent normalement au lieu de la bannière **Connecter GitLab**.
+
+En CLI, `nimbus pat status --json` renvoie un objet avec les champs `configured`, `required`, `gitlab_username` et `expires_at`, par exemple :
+
+```json
+{"configured": true, "required": false, "gitlab_username": "alice", "expires_at": "2027-01-31"}
+```
+
+## Limites
+
+Le jeton doit porter exactement les scopes `api` et `read_user`, et sa date d'expiration doit se situer après aujourd'hui (minuit UTC). Chaque nouvel enregistrement remplace le précédent : il n'y a qu'un seul jeton actif par compte.
+
+Quand le jeton expire ou est révoqué côté GitLab, Nimbus affiche **Token GitLab refusé** sur la page **Mes projets**. Créez alors un nouveau jeton et remplacez-le : la procédure est la même.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Token GitLab invalide. Vérifiez les scopes api et read_user.` | Scopes manquants ou jeton révoqué | Recréez le jeton avec `api` et `read_user`, puis remplacez-le |
+| `La date d’expiration du token GitLab est déjà passée (minuit UTC).` | Date passée ou fuseau défavorable | Choisissez une date nettement future des deux côtés |
+| `impossible de joindre GitLab` | GitLab ne répond pas (HTTP 502) | Attendez, puis réessayez sans changer le jeton |
+
+## Pour un agent
+
+Demandez à l'utilisateur de créer lui-même le jeton sur GitLab : vous ne devez jamais voir ni manipuler sa valeur en clair via l'interface. En CLI, faites-lui écrire `./pat.txt` lui-même, lancez `nimbus pat set` avec la date qu'il vous donne, puis vérifiez avec `nimbus pat status` et rappelez-lui de supprimer le fichier.
+
+## Voir aussi
+
+- [Se connecter](/demarrer/connexion)
+- [Votre première application](/demarrer/premiere-application)
+- [Déployer un dépôt existant](/parcours/depot-existant)

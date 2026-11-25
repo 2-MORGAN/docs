@@ -1,0 +1,121 @@
+---
+title: "Lire l'état de votre application"
+description: "Comprenez les badges d'état de votre application et vérifiez qu'elle tourne avec nimbus services status."
+keywords: ["état", "badge", "en marche", "à l'arrêt", "en échec", "status", "services status"]
+---
+
+## En bref
+
+Le badge affiché en haut de la page de votre application vous indique en un coup d'œil si elle est accessible, arrêtée, en train de changer d'état ou en panne.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page de l'application, en-tête (badge d'état) | `nimbus services status 123` | Tout membre du projet | Immédiat, c'est une simple lecture | Sans objet, lire l'état ne change rien |
+
+Dans cette page, `123` désigne l'identifiant de votre application. Vous le trouvez dans l'adresse de sa page (`/dashboard/services/123`) ou avec `nimbus services list --json`.
+
+## Avant de commencer
+
+- Vous êtes connecté et membre du projet qui porte l'application, sinon la page refuse de s'afficher.
+- Vous connaissez l'identifiant de l'application (`123`), relevé comme expliqué ci-dessus.
+- Si votre application n'a jamais été déployée, vous verrez **En développement** ou **Premier déploiement en cours**, expliqués dans la procédure.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la page de l'application">
+Cliquez sur **Projets**, puis sur le nom de votre application : le badge figure dans l'en-tête, à côté du bouton **Démarrer** ou **Arrêter**.
+</Step>
+<Step title="Lisez le badge">
+Le tableau suivant donne chaque badge et sa signification. Pendant une transition, le badge précise la direction, **Démarrage en cours…** ou **Arrêt en cours…**, au lieu d'un simple chargement.
+
+| Badge | Ce que cela veut dire |
+| --- | --- |
+| **En marche** | Votre application tourne et répond à son adresse publique. |
+| **À l'arrêt** | Votre application est éteinte et son adresse ne répond plus. |
+| **Démarrage en cours…** | Nimbus allume votre application, patientez. |
+| **Arrêt en cours…** | Nimbus éteint votre application, patientez. |
+| **Mise à jour…** | Nimbus applique un autre changement, par exemple une opération planifiée. |
+| **En échec** | Votre application ne parvient pas à démarrer, lisez le motif affiché. |
+| **Indisponible** | Nimbus ne parvient pas à vérifier l'état, le cluster est peut-être injoignable. |
+| **En développement** | Le projet existe mais rien n'a encore été déployé. |
+| **Premier déploiement en cours** | Le premier déploiement tourne actuellement, patientez puis actualisez. |
+| **Non publié** | Sur une cible edge, aucun déploiement n'est publié. |
+</Step>
+<Step title="Lisez la phrase sous le badge">
+La phrase emploie des mots exacts, utiles si vous contactez l'équipe Nimbus.
+
+- `Votre application est accessible.`
+- `Votre application est arrêtée.`
+- `Votre worker s’exécute en arrière-plan, sans URL publique.` (tâches de fond sans adresse publique)
+- `Une opération est en cours.`
+- `Votre application ne démarre pas.` (suivi du motif après un deux-points quand Nimbus le connaît)
+- `CNP ne peut pas vérifier l’application : le cluster peut être inaccessible ou le déploiement absent.`
+</Step>
+<Step title="Comprenez les valeurs brutes">
+En coulisses, chaque état tient dans une valeur courte renvoyée telle quelle par l'API et la CLI : `on`, `loading`, `off`, `error` ou `unknown`, affichée comme `En ligne`, `Chargement…`, `Arrêté`, `Erreur` ou `Statut indisponible`. Pendant une transition, la cible (`desired_state`, `on` ou `off`) affiche **Démarrage en cours…** ou **Arrêt en cours…**. Inutile de les mémoriser : elles servent seulement à lire le JSON de la CLI.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Consultez l'état">
+```sh
+nimbus services status 123
+```
+Elle affiche l'état courant de l'application `123` et se termine aussitôt, sans rien modifier.
+</Step>
+<Step title="Lisez le JSON complet">
+```sh
+nimbus services status 123 --json
+```
+Elle renvoie un objet `{status, reason?, desired_state?, power_pending?, power_error?}` dont voici la lecture champ par champ. Le champ `status` vaut `on`, `loading`, `off`, `error` ou `unknown`. Le champ `reason` n'est renseigné qu'en cas d'échec et donne le motif. Le champ `desired_state` vaut `on` ou `off` pendant une transition et indique la cible demandée. Le champ `power_pending` reste vrai tant que le démarrage ou l'arrêt n'est pas appliqué. Le champ `power_error` contient le motif si la dernière opération a échoué.
+</Step>
+<Step title="Suivez une transition">
+Après un démarrage ou un arrêt, répétez la commande jusqu'à ce que `power_pending` disparaisse. Tant qu'il est présent, l'application n'a pas fini de changer d'état. Pour demander le changement lui-même, suivez la page [Démarrer ou arrêter une application](/plateforme/demarrer-arreter).
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le badge de l'interface et la commande `nimbus services status 123` racontent la même histoire : **En marche** correspond à `on`, **À l'arrêt** à `off`, **En échec** à `error`, **Indisponible** à `unknown`, et **Démarrage en cours…** ou **Arrêt en cours…** à `loading`.
+- La page réinterroge l'état toute seule toutes les cinq secondes (trente secondes sur cible edge) : un badge transitoire se stabilise sans recharger la page.
+- Quand le badge affiche **En marche**, le bouton **Ouvrir l'application** ouvre votre adresse publique dans un nouvel onglet.
+- Ne concluez jamais qu'une application tourne sur la seule présence d'une adresse : seule la valeur `on` (badge **En marche**) le prouve, car une adresse peut survivre à l'arrêt.
+
+## Limites
+
+- La lecture est synchrone et reflète la dernière réponse du cluster. Si le cluster est injoignable, l'état devient **Indisponible** au lieu d'afficher une valeur périmée.
+- Sur une cible edge, le badge affiche **Non publié** tant que rien n'est publié, le bouton d'alimentation est désactivé et certains onglets (Disponibilité, Réseau, Coffre de production) sont marqués indisponibles, mais l'état reste lisible dans l'en-tête.
+- Tant qu'aucune application n'est déployée sur le projet, la commande répond 409 au lieu d'un état. Déployez d'abord votre application.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| 400 `id invalide` | L'identifiant ne ressemble pas à un numéro de service | Reprenez l'identifiant dans l'adresse de la page ou avec `nimbus services list --json` |
+| 401 `unauthorized` | Vous n'êtes pas connecté | Reconnectez-vous |
+| 404 `service introuvable` | Aucun service ne porte cet identifiant, ou vous n'y avez pas (ou plus) accès | Vérifiez l'identifiant et le projet courant |
+| 409 `ce projet n’a pas encore d’application déployée ; lancez son premier déploiement` | Le projet existe mais rien n'a été déployé | Lancez le premier déploiement, puis relisez l'état |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur l'identifiant de l'application (`123`), visible dans l'adresse de sa page. N'inventez jamais cet identifiant.
+2. Constatez avec `nimbus services status 123 --json`, jamais en devinant depuis l'adresse publique.
+3. Lisez `status` (`on`, `loading`, `off`, `error`, `unknown`) et `power_pending` : une transition n'est finie que quand `power_pending` disparaît.
+4. Si `status` vaut `error`, remontez le contenu de `reason` tel quel à l'utilisateur.
+5. Sur 409 avec un projet jamais déployé, annoncez qu'il faut d'abord déployer et demandez comment procéder.
+
+## Voir aussi
+
+- [Démarrer ou arrêter une application](/plateforme/demarrer-arreter)
+- [Redéployer votre application](/plateforme/redeployer)
+- [Programmer la disponibilité](/plateforme/disponibilite)

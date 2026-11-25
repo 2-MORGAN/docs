@@ -1,0 +1,92 @@
+---
+title: "Visite guidée de l'interface"
+description: "Chaque menu, page, onglet et bouton de Nimbus : où il se trouve, qui le voit et vers quelle page aller ensuite."
+keywords: ["interface", "navigation", "menu", "tableau de bord", "paramètres", "administration"]
+---
+
+## À quoi sert cette page
+
+Cette page est le plan de l'interface : pour chaque menu et chaque bouton, vous savez qui peut le voir et vers quelle page aller pour l'utiliser vraiment. Les explications détaillées vivent sur les pages de référence liées, pas ici.
+
+## La barre de navigation
+
+La barre apparaît sur toutes les pages connectées. Elle porte le logo `nimbus.` avec la mention `CLOUD NATIVE PLATFORM`, qui ramène vers vos projets quand vous êtes connecté.
+
+| Élément | Où il mène | Qui le voit |
+| --- | --- | --- |
+| **Projets** | La page **Mes projets** | Tout utilisateur connecté |
+| **Administration** | Le tableau de bord administrateur | Administrateurs uniquement |
+| **Paramètres** | Vos connexions, crédits et serveurs | Tout utilisateur connecté |
+| **Documentation** | Ce site de documentation | Tout le monde |
+| **Notifications** (cloche) | Vos notifications, avec le lien **Voir le projet** | Tout utilisateur connecté |
+| Votre nom d'utilisateur | Simple rappel du compte courant | Tout utilisateur connecté |
+| **Déconnexion** | Quitte la session sur ce navigateur | Tout utilisateur connecté |
+| **Se connecter** | Démarre la connexion quand vous êtes déconnecté | Visiteurs déconnectés |
+
+La cloche **Notifications** affiche une pastille avec le nombre de non lues, plafonnée à `99+`. Cliquez dessus pour ouvrir la fenêtre **Notifications**, tout marquer lu avec **Tout marquer comme lu**, ou suivre **Voir le projet**. Le détail est sur [lire vos notifications](/plateforme/notifications) : la cloche et la commande `nimbus notifications list` montrent les mêmes alertes.
+
+## La page d'accueil publique
+
+L'adresse `https://cnp.2morgan.fun` affiche la page d'accueil quand vous êtes déconnecté. Elle présente Nimbus et propose les boutons **Se connecter** et **Déployer mon projet**, qui démarrent tous deux la connexion. Une fois connecté, les mêmes boutons deviennent **Mon espace** et **Accéder à mon espace**, qui mènent à vos projets. Pour entrer, suivez [se connecter](/demarrer/connexion).
+
+## Mes projets
+
+La page **Mes projets** est votre point d'arrivée après connexion et votre tableau de bord quotidien. Son titre devient **Tous les projets**, accompagné du badge **Vue admin**, quand vous êtes administrateur : vous voyez alors les projets de toute la plateforme au lieu de vos seuls projets.
+
+Vous y trouvez le bouton **Nouveau projet**, qui ouvre l'assistant de création, et un compteur du type `N projet(s) à vérifier` avec le lien **Voir les projets concernés** quand des projets demandent votre attention. Les vues **Vue cartes** et **Vue tableau**, la recherche **Rechercher un projet**, les filtres par accès et par déploiement, et le tri **Trier les projets** vous aident à retrouver un projet.
+
+Trois bannières concernent GitLab : **Token GitLab refusé** avec le bouton **Remplacer le token**, **Connecter GitLab** avec le bouton du même nom, et **Projets indisponibles** avec **Réessayer**. Toutes trois se règlent sur [créer le jeton GitLab](/demarrer/gitlab).
+
+## Nouveau projet
+
+Le bouton **Nouveau projet** ouvre l'assistant en quatre étapes : **Dépôt**, **Configuration**, **Base de données**, **Vérification**. Vous y choisissez un dépôt existant ou à créer, le framework, la **Cible de déploiement** et l'éventuelle base, puis vous terminez par **Créer le projet** ou **Déployer l'application**.
+
+Tout le parcours pas à pas est raconté sur [votre première application](/demarrer/premiere-application). Les options avancées (cibles, frameworks, base) sont détaillées sur [relier un dépôt existant](/plateforme/creer-un-projet) et [choisir une cible](/plateforme/cibles).
+
+## Paramètres
+
+La page **Paramètres** regroupe tout ce qui est personnel, en trois cartes verticales.
+
+La carte **GitLab EPITA** gère votre jeton GitLab : elle affiche l'état (**Token enregistré**, **Date dépassée**, **Requis**, **Facultatif** ou **Non enregistré**), votre compte (`@<nom>` où `<nom>` est votre nom GitLab, ou `Non renseigné`) et la date d'expiration déclarée. Ses boutons **Ajouter un token GitLab** et **Remplacer le token** ouvrent la modale de jeton (**Ajouter ou remplacer un token** s'affiche après une erreur). Le succès affiche `Le token GitLab a été enregistré avec succès.` La procédure complète est sur [créer le jeton GitLab](/demarrer/gitlab).
+
+La carte **Mes crédits** affiche votre solde et vos limites personnelles. Le détail est sur [mes crédits](/plateforme/credits) : le panneau et les commandes `nimbus credits get` et `nimbus credits limits get` montrent les mêmes chiffres.
+
+La carte **Mes VPS** (ou **Tous les VPS** pour un administrateur) liste vos serveurs, avec le bouton **Ajouter un VPS**. Tout le rattachement est expliqué sur [ajouter votre serveur](/plateforme/vps).
+
+## Administration
+
+Le lien **Administration** n'apparaît que pour les administrateurs. Les autres utilisateurs qui ouvrent la page voient l'écran `Espace réservé à l’administration` avec le bouton **Revenir à mon espace**.
+
+La page affiche `Une vue sur toute la plateforme.` et rassemble les panneaux de pilotage : la **Santé de la plateforme**, les **Crédits**, les **Bundles enregistrés par les utilisateurs** (les propositions IA en attente de revue), la **Copie dans GitLab** (avec **Synchroniser maintenant**) et le **Cluster AKS** (avec **Démarrer AKS** et **Arrêter AKS**). Chaque panneau renvoie vers sa page de référence.
+
+## Classes
+
+Les pages **Classes** (bouton **Gérer les inscriptions** dans **Administration**, carte **Classes et accès**) et le détail de chaque classe sont réservées aux administrateurs : tout autre utilisateur est renvoyé vers **Mes projets**. Les administrateurs y trouvent la liste des classes avec les boutons **Créer la classe**, **Importer le CSV** et **Supprimer**, puis par classe la liste des inscrits avec les boutons **Inscrire** et **Retirer**. Tout est détaillé sur [gérer une classe](/plateforme/classes).
+
+## La page d'un projet
+
+Cliquer sur un projet ouvre sa page, organisée par une barre latérale de sections. Les sections visibles dépendent de l'état du projet et de vos droits : certaines exigent le droit de gérer les variables, d'autres le rôle d'administrateur, et les applications statiques masquent les sections sans objet.
+
+| Section | Contenu | Qui la voit |
+| --- | --- | --- |
+| **Vue d'ensemble** | État, URL publique et pipeline récent | Toute personne ayant accès au projet |
+| **Préparer le déploiement** ou **Déploiement** | Configuration, cible et boutons **Démarrer**, **Arrêter**, **Redéployer** | Selon le droit d'exploiter pour les boutons |
+| **Journaux** | Les logs d'exécution | Toute personne ayant accès au projet |
+| **Ressources et coûts** (ou **Coûts et usage Cloudflare** sur cible edge) | CPU, mémoire et coût estimé | Toute personne ayant accès au projet |
+| **Disponibilité** | Plages d'activité planifiées | Toute personne ayant accès au projet |
+| **Variables** | Les variables d'environnement | Toute personne ayant accès au projet en lecture, gestion selon le droit |
+| **Coffre de production** et **Coffre de développement** | Les secrets partagés | Droit de gérer les variables uniquement |
+| **PostgreSQL** | La base dédiée et ses sauvegardes | Droit de gérer la base pour les écritures |
+| **Réseau** | L'adresse publique et la passerelle | Toute personne ayant accès au projet |
+| **Identité** | La connexion SSO de l'application | Si l'identité est activée |
+| **Membres et accès** | La liste des membres et le partage par classe | Formulaire selon le droit de gérer les membres |
+| **Paramètres** | Les réglages du projet | Toute personne ayant accès au projet |
+| **Politique** | Le type de projet et le verrou des membres | Administrateurs uniquement |
+
+Pour agir sur le projet plutôt que le visiter, partez de [démarrer et arrêter](/plateforme/demarrer-arreter), [redéployer](/plateforme/redeployer), [membres et accès](/plateforme/membres-et-politique) et [rôles et accès](/plateforme/roles).
+
+## Voir aussi
+
+- [Les notions](/demarrer/notions)
+- [Rôles et accès](/plateforme/roles)
+- [Votre première application](/demarrer/premiere-application)
