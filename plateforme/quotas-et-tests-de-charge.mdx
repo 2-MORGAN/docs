@@ -1,0 +1,134 @@
+---
+title: "Plafonner les ressources et tester la charge"
+description: "Fixez le quota CPU, mémoire et pods de votre projet, puis vérifiez sa tenue avec un test de charge."
+keywords: ["quota", "test de charge", "CPU", "mémoire", "pods", "ressources"]
+---
+
+## En bref
+
+Vous plafonnez les ressources de votre projet avec un quota, puis vous simulez un pic de visites pour vérifier que l'application tient.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Lecture dans l'onglet **Ressources et coûts**, écriture du quota dans l'onglet **Politique** | `nimbus services quota set 123 --cpu-cores 4 --memory-gib 8 --max-pods 10` | Lecture pour les membres, quota écrit par un administrateur de la plateforme, test lancé avec le droit de configurer | Quota appliqué aussitôt, test exécuté en arrière-plan | Oui, mais le retrait suit la même règle d'application que la pose |
+
+## Avant de commencer
+
+- Votre application est déployée sur un cluster : la cible edge n'a ni ressources Kubernetes ni URL à tester. Pour le test de charge, l'application expose en plus une URL publique, ce qui exclut aussi les workers.
+- Votre CLI est connectée (`nimbus auth whoami` répond sans erreur) et vous connaissez l'identifiant du service (`123` dans les exemples), visible dans l'URL de la page du service.
+- Pour écrire le quota, vous êtes administrateur de la plateforme : seul ce rôle fixe le quota d'un projet.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Consultez le quota">
+Ouvrez la page de votre service, puis cliquez sur l'onglet **Ressources et coûts**. Le panneau **Quota du projet** affiche le badge **Quota du namespace** ou **Limite de l'autoscaling uniquement**, ou bien le message **Aucun quota configuré.**
+</Step>
+<Step title="Ouvrez l'onglet Politique pour écrire">
+Cliquez sur l'onglet **Politique**, visible pour les administrateurs de la plateforme. Le même panneau **Quota du projet** y propose les boutons d'écriture décrits ci-dessous.
+</Step>
+<Step title="Définissez le quota">
+Cliquez sur **Définir un quota**, ou sur **Modifier le quota** si un quota existe. Saisissez **CPU (cœurs)** entre `2` et `8`, **Mémoire (Gio)** entre `2` et `16`, et **Nombre maximal de pods** entre `3` et `30`. Cliquez sur **Enregistrer le quota** : le message **Quota enregistré.** confirme l'enregistrement.
+</Step>
+<Step title="Retirez le quota si besoin">
+Cliquez sur **Retirer le quota**. Le dialogue **Retirer le quota du projet ?** récapitule l'enveloppe retirée. Confirmez : le message **Quota retiré.** confirme.
+</Step>
+<Step title="Lancez un test de charge">
+Dans le panneau **Test de charge** de l'onglet **Ressources et coûts**, réglez la **Durée (secondes)** entre `10` et `120`, les **Connexions simultanées** entre `1` et `20`, et le **Chemin**, par exemple `/` ou `/api/health`. Le formulaire n'apparaît que si vous pouvez configurer le service et que l'URL publique est connue. Cliquez sur **Lancer le test** : le statut passe à **En cours**, puis à **Terminé** ou **Échec**.
+</Step>
+<Step title="Relisez le dernier test">
+La section **Dernier test** montre les faits **Avant le test**, le **Pic observé** et l'état **À la fin du test**. Cliquez sur **Actualiser le dernier test** pour rafraîchir le résultat.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Consultez le quota">
+```sh
+nimbus services quota get 123
+```
+Elle renvoie le quota du projet, ou un état non configuré s'il n'y en a pas.
+</Step>
+<Step title="Fixez le quota">
+```sh
+nimbus services quota set 123 --cpu-cores 4 --memory-gib 8 --max-pods 10
+```
+Elle enregistre le quota, mais seul un administrateur de la plateforme peut l'exécuter. Les trois options sont obligatoires :
+```json
+{
+  "cpu_cores": 4,
+  "memory_gib": 8,
+  "max_pods": 10
+}
+```
+Le champ `cpu_cores` plafonne les cœurs entre `2` et `8`. Le champ `memory_gib` plafonne la mémoire en gigaoctets entre `2` et `16`. Le champ `max_pods` plafonne le nombre de copies entre `3` et `30`.
+</Step>
+<Step title="Retirez le quota">
+```sh
+nimbus services quota delete 123 --yes
+```
+Elle retire le quota du projet. L'option `--yes` confirme l'opération destructive.
+</Step>
+<Step title="Lancez un test de charge">
+```sh
+nimbus services load-tests start 123 --duration-seconds 30 --concurrency 10 --path /
+```
+Elle démarre le test et répond aussitôt 202, puis le test tourne en arrière-plan. Le chemin commence par `/` et fait 512 caractères au plus. Sans option, le test dure 30 secondes avec 10 connexions sur `/`.
+</Step>
+<Step title="Consultez le dernier test">
+```sh
+nimbus services load-tests latest 123
+```
+Elle renvoie le dernier test conservé, avec requêtes, erreurs, codes de statut et latences. Elle répond 404 si aucun test n'a encore été lancé.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau **Quota du projet** affiche le badge **Quota du namespace** quand le cluster applique le quota, ou **Limite de l'autoscaling uniquement** sinon. En CLI, `nimbus services quota get 123` renvoie les valeurs enregistrées.
+- Le panneau **Test de charge** affiche le statut **Terminé** avec les faits **Avant le test**, **Pic observé** et **À la fin du test**. En CLI, `nimbus services load-tests latest 123` renvoie le résultat chiffré.
+
+## Limites
+
+- Le quota accepte de 2 à 8 cœurs CPU, de 2 à 16 `Gio` de mémoire, et de 3 à 30 pods. L'écriture est réservée à un administrateur de la plateforme.
+- Un test dure de 10 à 120 secondes, avec 1 à 20 connexions, un chemin relatif de 512 caractères au plus, et seul le dernier test est conservé. Un seul test tourne à la fois par application, deux au plus sur la plateforme.
+- Si le cluster n'applique pas le quota aussitôt, il le sera au prochain déploiement. La cible edge et les workers refusent les tests de charge.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| 403 « seul un opérateur fixe le quota d'un projet » | Écriture sans rôle d'administrateur de la plateforme | Demandez à un administrateur de la plateforme |
+| 422 « le CPU doit être entre 2 et 8 cœurs », « la mémoire doit être entre 2 et 16 Gio », « le nombre de pods doit être entre 3 et 30 » | Valeur hors bornes | Choisissez une valeur dans les bornes rappelées plus haut |
+| 422 « la durée doit être entre 10 et 120 secondes », « le nombre de connexions simultanées doit être entre 1 et 20 », « le chemin doit commencer par / et rester sur l'application » | Option du test hors bornes | Choisissez une valeur dans les bornes rappelées plus haut |
+| 409 « 6 pods au maximum dépassent le quota du projet (4 cœurs, 4 Gio, 6 pods) : chaque pod compte 1 cœur et 1 Gio ; réduisez d'abord l'autoscaling » (chiffres adaptés à votre cas) | Autoscaling au-dessus du quota | Réduisez d'abord l'autoscaling, puis refixez le quota |
+| 502 « quota enregistré mais non appliqué au cluster ; il le sera au prochain déploiement » | Cluster injoignable | Redéployez l'application pour appliquer le quota |
+| 409 « la cible edge n'a pas de ressources Kubernetes : pas de quota » | Application sur cible edge | Déployez sur un cluster pour utiliser un quota |
+| 409 « un test de charge est déjà en cours sur cette application » | Test déjà lancé | Attendez la fin du test en cours |
+| 429 « trop de tests de charge en cours sur la plateforme ; réessayez dans quelques minutes » | Plateforme saturée | Réessayez dans quelques minutes |
+| 409 « les tests de charge visent les applications des clusters, pas la cible edge » | Application sur cible edge | Testez depuis un déploiement sur cluster |
+| 422 « un worker n'a pas d'URL : pas de test de charge » | Application de type worker | Testez depuis une application HTTP exposée |
+| 422 « URL publique de l'application inconnue » | URL pas encore connue | Attendez que l'URL publique soit connue, puis relancez le test |
+| 404 « aucun test de charge » | Aucun test lancé avant `latest` | Lancez d'abord un test avec `start` |
+
+## Pour un agent
+
+1. Demandez l'identifiant du service et, pour le quota, les trois valeurs souhaitées. Attendez ici la réponse.
+2. Consultez d'abord `nimbus services quota get 123` et `nimbus services load-tests latest 123` pour voir l'état existant (`latest` répond 404 sans test précédent).
+3. Pour le quota, vérifiez que l'utilisateur est administrateur de la plateforme avant `set` ou `delete`, car l'API répond 403 sinon.
+4. Lancez les tests avec `start`, puis constatez avec `latest`, sans relancer un test déjà **En cours**.
+5. En cas de 409 entre quota et autoscaling, proposez de baisser l'autoscaling et attendez l'accord.
+
+## Voir aussi
+
+- [Adapter le nombre de pods à la charge](/plateforme/autoscaling)
+- [Programmer la disponibilité](/plateforme/disponibilite)
+- [Suivre la santé et les ressources](/plateforme/sante-et-ressources)

@@ -1,0 +1,97 @@
+---
+title: "Comprendre un échec de déploiement"
+description: "Lisez le diagnostic de déploiement de votre application : étape en cause, raison de l'échec, pipeline GitLab et liens vers le job fautif."
+keywords: ["échec de déploiement", "diagnostic de déploiement", "pipeline", "ArgoCD", "déploiement échoué", "synchronisation"]
+---
+
+## En bref
+
+Quand un déploiement échoue, Nimbus enregistre où et pourquoi. Vous lisez ce diagnostic avant de toucher à quoi que ce soit : la moitié des échecs viennent d'une cause que le panneau nomme déjà.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service, onglets **Vue d'ensemble** et **Déploiement**, panneau **Dernier déploiement échoué** (absent quand tout va bien) | `nimbus services deployment-failure`, `nimbus services pipeline` | Tout membre du projet (lecture seule) | Immédiat | Oui, la lecture ne change rien |
+
+## Avant de commencer
+
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous connaissez l'identifiant du service (`<ID>`, par exemple `123`), visible avec `nimbus services list --json`.
+- Pour voir le statut du pipeline dans Nimbus, votre jeton GitLab doit être enregistré. Sans lui, la plateforme répond `Configurez votre jeton GitLab dans vos paramètres pour consulter le pipeline.`
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le diagnostic">
+Sur la page du service, ouvrez l'onglet **Déploiement**. Si le dernier déploiement a échoué, le panneau **Dernier déploiement échoué** s'affiche ; sinon, aucun panneau ne s'affiche et il n'y a rien à réparer. Pendant la lecture, vous voyez **Lecture du diagnostic…**.
+</Step>
+<Step title="Repérez l'étape et l'opération">
+Le diagnostic nomme l'étape qui a cassé parmi **Préparation**, **Pipeline GitLab**, **Synchronisation ArgoCD** et **Démarrage Kubernetes**, et l'opération en cours parmi **Configuration**, **Redéploiement**, **Ajout de PostgreSQL**, **Suppression de PostgreSQL** et **Gateway d'API**. Si l'opération affiche `autoscaling`, c'est un changement de redimensionnement automatique qui a échoué : le panneau montre alors le code brut. L'étape vous dit où chercher : un échec **Pipeline GitLab** se règle dans votre dépôt, un échec **Synchronisation ArgoCD** ou **Démarrage Kubernetes** se règle dans la configuration du service.
+</Step>
+<Step title="Ouvrez la preuve">
+Cliquez sur **Ouvrir le job dans GitLab** pour voir le journal exact de la tâche fautive, ou sur **Voir le pipeline** pour le contexte complet. Dépliez **Fin du log du job** pour lire la fin du journal sans quitter Nimbus, et **Détails techniques** pour la raison exacte enregistrée. Le panneau ne propose volontairement aucune action corrective : il explique, et c'est dans les pages de configuration que vous réparez.
+</Step>
+<Step title="Suivez le pipeline en direct">
+Le badge de statut du pipeline (**Réussi**, **Échec**, **En cours**, **En attente**, **Annulé**, **Ignoré** ou **Inconnu**) suit l'avancement en haut de la page du service. Pendant un redéploiement, le bandeau **Redéploiement en cours** avec **La plateforme prépare votre application…** vous confirme que la machine travaille.
+</Step>
+</Steps>
+
+Si le panneau affiche **Diagnostic partiel : …**, une source d'information manquait au moment de l'analyse (GitLab, ArgoCD ou le cluster). Le diagnostic reste utile, mais vérifiez l'étape incriminée directement dans GitLab avant de conclure.
+
+</Tab>
+<Tab title="CLI">
+
+Le dernier échec se lit en une commande, sans option :
+
+```sh
+nimbus services deployment-failure 123 --json
+```
+
+Elle renvoie l'échec avec son étape (`preparation`, `pipeline`, `argocd_sync` ou `kubernetes`), son opération et sa raison, ou `{"failure": null}` quand le dernier déploiement a réussi. Ici, `123` est l'identifiant du service.
+
+L'état du pipeline GitLab se lit séparément :
+
+```sh
+nimbus services pipeline 123 --json
+```
+
+Elle renvoie le statut du pipeline sur la branche de déploiement. Ici aussi, `123` est l'identifiant du service. Elle exige votre jeton GitLab enregistré, comme le badge de statut de l'interface.
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+Après votre correction, relancez un déploiement (bouton **Redéployer** ou `nimbus services redeploy 123`), puis rouvrez l'onglet **Déploiement** : le panneau **Dernier déploiement échoué** a disparu, et le badge du pipeline affiche **Réussi**. Tant que le panneau montre un échec, c'est le diagnostic précédent que vous lisez, pas le nouveau : actualisez après chaque tentative.
+
+## Limites
+
+- Le diagnostic décrit le dernier échec seulement. Un déploiement réussi efface l'échec précédent, et cet effacement est définitif : copiez les détails qui vous servent avant de relancer.
+- La raison est un code parmi une liste fermée (`job_failed`, `pipeline_failed`, `pipeline_canceled`, `pipeline_skipped`, `pipeline_manual`, `pipeline_timeout`, `pipeline_not_found`, `sync_failed`, `sync_timeout`, `application_degraded`, `workload_failed`, `restart_failed`, `render_failed`, `publish_failed`, `deploy_tokens_failed`, `environment_secret_failed`, `deploy_credentials_missing`). Si le code vous semble générique, la cause précise est dans le job GitLab, pas dans le code.
+- Le diagnostic ne répare rien tout seul. Pour les causes fréquentes, la correction vit dans les pages [Variables et secrets](/plateforme/variables), [PostgreSQL](/plateforme/postgresql) et [Redéployer](/plateforme/redeployer), que le panneau ne cite pas : gardez cette page comme point d'entrée, pas comme guide de réparation.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `diagnostic de déploiement indisponible` | Le stockage du diagnostic est injoignable | Attendez une minute et actualisez ; si le message persiste, prévenez l'équipe Nimbus |
+| `Configurez votre jeton GitLab dans vos paramètres pour consulter le pipeline.` | Votre jeton GitLab manque | Enregistrez votre jeton GitLab, puis rechargez |
+| `Votre jeton GitLab ne permet pas de consulter ce pipeline.` | Votre jeton GitLab est refusé par GitLab | Vérifiez les droits de votre jeton sur le dépôt, puis réessayez |
+| `impossible de joindre GitLab` ou `impossible de lire le pipeline GitLab` | GitLab est injoignable | Réessayez dans quelques minutes ; le problème est côté GitLab, pas côté Nimbus |
+
+La liste complète des messages, tous domaines confondus, vit dans la page [Messages d'erreur](/depannage/messages).
+
+## Pour un agent
+
+1. Demandez l'identifiant du service, ou trouvez-le avec `nimbus services list --json`. Attendez ici la réponse si l'utilisateur doit choisir.
+2. Commencez toujours par `nimbus services deployment-failure <ID> --json` : l'étape (`stage`) et la raison (`reason`) cadrent tout le diagnostic, ne les devinez jamais.
+3. Si la raison pointe le pipeline, lisez le job GitLab avant de proposer une correction : le code de raison seul ne suffit pas.
+4. Ne relancez jamais un redéploiement sans l'accord explicite de l'utilisateur : chaque tentative consomme du temps de pipeline et efface le diagnostic précédent.
+
+## Voir aussi
+
+- [Consulter les journaux](/plateforme/logs)
+- [Redéployer votre application](/plateforme/redeployer)
+- [Messages d'erreur](/depannage/messages)

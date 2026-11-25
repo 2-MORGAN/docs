@@ -1,0 +1,128 @@
+---
+title: "Rôles et accès"
+description: "Qui peut faire quoi dans Nimbus : matrice des rôles plateforme student, teacher et admin, matrice des rôles projet owner, member et supervisor."
+keywords: ["rôles", "permissions", "student", "teacher", "admin", "owner", "member", "supervisor", "accès"]
+---
+
+## En bref
+
+Deux niveaux de rôles coexistent : votre rôle plateforme dit ce que vous voyez dans Nimbus, et votre rôle sur chaque projet dit ce que vous pouvez y faire. Les administrateurs de la plateforme peuvent tout faire partout.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Section **Membres et accès** d'un projet | `nimbus services members set 123 --username alice --role member` | Droit de gérer les membres (voir matrices) | Immédiat | Oui, en retirant ou en changeant le rôle |
+
+Ici, `123` est l'identifiant du projet (affiché par la liste des projets) et `alice` le nom du compte Nimbus de la personne, qui doit s'être connectée au moins une fois.
+
+## Les rôles plateforme
+
+Votre rôle plateforme est attribué dans le système de comptes, jamais dans Nimbus : personne ne peut se promouvoir depuis l'interface. Il est figé dans votre session jusqu'à votre prochaine connexion.
+
+| Capacité | Élève (`student`) | Professeur (`teacher`) | Administrateur (`admin`) |
+| --- | --- | --- | --- |
+| Se connecter et voir ses projets | Oui | Oui | Oui, plus tous les projets avec le badge **Vue admin** |
+| Rechercher des comptes (`users search`) | Non (`403 "accès refusé"`) | Oui | Oui |
+| Voir le lien **Administration** | Non, écran `Espace réservé à l’administration` | Non, même écran | Oui |
+| Gérer les classes | Non, retour vers **Mes projets** | Non | Oui |
+| Changer la politique d'un projet | Non | Non | Oui |
+| Tout le reste | Selon le rôle projet | Selon le rôle projet | Oui, partout |
+
+Pour vérifier votre rôle courant, utilisez votre nom affiché dans la barre de navigation ou la commande :
+
+```sh
+nimbus auth whoami
+```
+
+Elle affiche votre nom, votre identifiant et vos rôles. Les rôles hors hiérarchie (`association`, `external-access`) ne changent rien à ce tableau : ils ouvrent seulement des cas particuliers comme les applications associatives ou les comptes hors domaine autorisé.
+
+## Les rôles projet
+
+Chaque projet partage ses accès entre membres directs et classes. Les rôles stockés sont `owner` (propriétaire) et `member` (membre) ; `supervisor` (encadrant) est calculé automatiquement pour les enseignants du cours lié et ne s'attribue jamais à la main.
+
+| Action | `owner` | `member` | `supervisor` |
+| --- | --- | --- | --- |
+| Voir le projet (`view`) | Oui | Oui | Oui |
+| Démarrer, arrêter, redéployer (`operate`) | Oui | Oui | Non |
+| Gérer les variables (`manage-env`) | Oui | Oui | Non |
+| Gérer PostgreSQL (`manage-database`) | Oui | Non | Non |
+| Configurer (framework, cible) (`configure`) | Oui | Non | Non |
+| Supprimer le projet (`delete`) | Oui | Non | Non |
+| Gérer les membres (`manage-members`) | Oui, sauf si la liste est verrouillée | Non | Oui si la liste est verrouillée |
+| Gérer l'identité de l'application (`manage-identity`) | Oui | Oui | Non |
+
+Deux verrous restreignent encore ces droits. Quand la date de rendu d'un projet de cours est passée (projet gelé), les propriétaires et les membres retombent en lecture seule : seul un administrateur peut encore écrire. Quand la **Politique** du projet verrouille la liste des membres, même les propriétaires ne peuvent plus la modifier : seuls les administrateurs et les encadrants du cours le peuvent.
+
+Quitter un projet reste toujours possible pour vous-même, même sans droit de gérer les membres. En revanche, le projet doit toujours garder au moins un propriétaire.
+
+## Changer les rôles d'un projet
+
+<Tabs>
+<Tab title="Interface">
+
+Ouvrez le projet, puis la section **Membres et accès**. Le panneau **Membres du projet** liste les accès directs, avec la pastille **Vous** sur votre ligne. Ajoutez une personne avec les champs **Nom d'utilisateur** (son nom dans Nimbus, qui doit s'être connectée une fois) et **Rôle**, puis cliquez sur **Ajouter le membre**. Le bouton **Quitter le projet**, avec confirmation **Confirmer le départ**, retire votre propre accès.
+
+La carte **Accès des classes** partage le projet avec une classe entière : choisissez la **Classe** et le **Rôle de la classe**, cliquez sur **Enregistrer l'accès**, puis confirmez. Chaque inscrit actuel et futur hérite du rôle.
+
+La section **Politique**, réservée aux administrateurs, choisit le **Type de projet** et la case **Verrouiller la liste de membres**, puis **Enregistrer la politique**.
+
+</Tab>
+<Tab title="CLI">
+
+Listez les membres et votre rôle avec :
+
+```sh
+nimbus services members list 123 --json
+```
+
+Ajoutez ou changez le rôle d'une personne (rôle `owner` ou `member` exigé) avec :
+
+```sh
+nimbus services members set 123 --username alice --role member
+```
+
+Retirez une personne (demande confirmation sans `--yes`) avec :
+
+```sh
+nimbus services members delete 123 <SUB> --yes
+```
+
+Ici, `<SUB>` est l'identifiant du membre tel qu'affiché par la commande `list`. Partagez avec une classe avec :
+
+```sh
+nimbus services classes set 123 7 --role member
+```
+
+Ici, `7` est l'identifiant de la classe. Changez le type de projet (administrateurs uniquement) avec :
+
+```sh
+nimbus services policy set 123 --kind personal
+```
+
+Le `kind` vaut `personal`, `team` ou `course`.
+
+</Tab>
+</Tabs>
+
+<Warning>Sans `--members-locked`, la commande `policy set` remet le verrou des membres à `false` : elle lève un verrou existant sans prévenir. Relisez la politique après chaque changement.</Warning>
+
+## Si ça échoue
+
+| Message exact (code HTTP) | Cause | Geste |
+| --- | --- | --- |
+| `username et role (owner ou member) requis` (400) | Nom ou rôle manquant, ou rôle inconnu | Reprenez la commande avec `--username` et `--role owner` ou `member` |
+| `le rôle encadrant est réservé aux accès historiques conservés par la migration` (400) | Rôle `supervisor` demandé à la main | Attribuez `owner` ou `member`, le statut d'encadrant est automatique |
+| `utilisateur inconnu : la personne doit s'être connectée une fois à Nimbus` (404) | Compte jamais venu sur Nimbus | Faites-la se connecter une fois, puis réessayez |
+| `le projet doit garder au moins un propriétaire` (409) | Retrait du dernier propriétaire | Désignez un autre propriétaire d'abord |
+| `service introuvable` (404) | Projet inexistant, ou aucun accès de votre part | Vérifiez l'identifiant et demandez un accès |
+| `accès refusé` (403) | Rôle insuffisant pour cette action | Demandez à un propriétaire ou à un administrateur |
+| `accès refusé : projet gelé depuis la date de gel du cours` (403) | Date de rendu du cours passée | Contactez l'équipe Nimbus, seul un administrateur peut écrire |
+
+## Pour un agent
+
+Demandez toujours le nom exact du compte et le rôle souhaité avant d'ajouter un membre, et confirmez l'identifiant du projet avec `services members list`. Ne touchez jamais à la **Politique** (type, verrou) sans l'accord explicite d'un administrateur : un `policy set` maladroit lève le verrou des membres. Constatez chaque changement en relisant la liste des membres.
+
+## Voir aussi
+
+- [Membres et politique du projet](/plateforme/membres-et-politique)
+- [Gérer une classe](/plateforme/classes)
+- [Visite guidée de l'interface](/plateforme/visite-guidee)

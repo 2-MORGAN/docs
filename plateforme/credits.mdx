@@ -1,0 +1,127 @@
+---
+title: "Gérer vos crédits"
+description: "Lisez votre solde de crédits, contribuez aux projets et plafonnez votre consommation."
+keywords: ["crédits", "solde", "engagement", "limites et alertes", "enveloppe projet"]
+---
+
+## En bref
+
+Vos crédits paient l'usage de la plateforme : vous suivez votre solde, vous financez vos projets et vous plafonnez vos dépenses.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Paramètres**, panneau **Mes crédits**, et page du service, onglet **Ressources et coûts**, panneau **Crédits du projet** | `nimbus credits get` ; `nimbus credits limits get` et `nimbus credits limits set --input limites.json` ; `nimbus services credits get 123` ; `nimbus services credits commitment set 123 --credits 40` ; `nimbus services credits limits set 123 --input limites.json` | Chacun lit son solde ; l'engagement exige le rôle propriétaire ou membre du projet ; les limites du projet exigent le rôle propriétaire du projet ou administrateur | Immédiat | Oui : l'engagement et les limites se modifient à tout moment |
+
+Dans les exemples, `123` désigne l'identifiant du projet et `limites.json` un fichier avec un objet `{"limits": [...]}`. Ces commandes ne prennent pas `--cluster-id` : vos crédits ne dépendent d'aucune cible.
+
+## Avant de commencer
+
+- Vous êtes connecté : le panneau **Mes crédits** est visible dès l'authentification, sans rôle particulier.
+- Vous retenez l'unité : 100 crédits valent une unité de coût estimé, donc 1 crédit vaut 0,01 de coût estimé. L'allocation mensuelle par défaut est de 1000 crédits, ajustable par un administrateur.
+- Pour contribuer aux crédits d'un projet, vous êtes propriétaire ou membre de ce projet.
+- Pour modifier les limites d'un projet, vous êtes propriétaire du projet ou administrateur.
+- Pour la CLI, vous êtes connecté (`nimbus auth login`). Ajoutez `--json` pour un résultat lisible par script. L'option `--input` prend un fichier ou `-` pour l'entrée standard.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+Suivez ces étapes dans l'ordre.
+
+<Steps>
+<Step title="Lisez votre solde">
+Dans le menu, cliquez sur **Paramètres** (fil **Espace de travail / Paramètres**). Le panneau **Mes crédits** affiche votre badge : **Admin : sans limite**, **Solde épuisé**, **Seuil atteint** ou **Disponible**. La ligne **crédits restants sur** donne le solde et **% consommés** la part utilisée. Cliquez sur **Actualiser mes crédits** pour recharger. La section **Par projet** détaille la consommation par projet et **Hors projet** regroupe le reste.
+</Step>
+<Step title="Contribuez à un projet">
+Ouvrez la page du service, onglet **Ressources et coûts**, panneau **Crédits du projet**. Le badge indique **Enveloppe disponible**, **Seuil atteint** ou **Actions bloquées**. Le panneau montre **crédits consommés sur une enveloppe de**, le tableau des **Contributeurs** (**Utilisateur**, **Rôle**, **Engagement**, **Part**, **Payé ce mois**) et la mention **tout son solde** pour un engagement total. Si vous êtes propriétaire ou membre, cliquez sur **Modifier mon engagement** : choisissez **Tout mon solde** ou **Un montant**, saisissez les **Crédits par mois** (exemple `40`, `0` signifie que vous ne payez rien), puis cliquez sur **Enregistrer**. **Annuler** abandonne sans changer l'engagement.
+</Step>
+<Step title="Plafonnez avec les limites">
+Dans **Mes crédits** ou **Crédits du projet**, l'éditeur **Limites et alertes** liste les postes **Calcul**, **Stockage**, **IA**, **Autres** et **Total**. Cliquez sur **Modifier les limites**, renseignez la **Limite (crédits/mois)** et les **Alertes en %** ou **Alertes en crédits** par poste, puis cliquez sur **Enregistrer les limites**. Une limite atteinte refuse les nouvelles actions du poste, tandis qu'une alerte notifie sans bloquer. Laissez une ligne vide pour ne rien régler sur un poste.
+</Step>
+</Steps>
+
+<Note>1 crédit vaut 0,01 de coût estimé : le calcul et le stockage sont décomptés chaque heure, l'IA et les tests de charge à chaque usage. Sans réglage sur le total, une alerte part au seuil par défaut puis à 100 %.</Note>
+
+</Tab>
+<Tab title="CLI">
+
+Lisez votre solde du mois, avec la répartition par poste et par projet.
+
+```bash
+nimbus credits get --json
+```
+
+Lisez vos limites et alertes personnelles, tous projets confondus.
+
+```bash
+nimbus credits limits get --json
+```
+
+Remplacez tout votre jeu de limites personnelles. Les postes sont `compute`, `storage`, `ai`, `other` et `total`.
+
+```bash
+echo '{"limits":[{"category":"total","limit":500,"alertPercents":[80]}]}' | nimbus credits limits set --input - --json
+```
+
+Lisez l'enveloppe de crédits d'un projet, avec les engagements, la consommation et vos droits. Ici `123` désigne l'identifiant du projet.
+
+```bash
+nimbus services credits get 123 --json
+```
+
+Fixez votre engagement mensuel sur le projet. Sans `--credits`, vous engagez tout votre solde.
+
+```bash
+nimbus services credits commitment set 123 --credits 40 --json
+```
+
+Remplacez les limites et alertes du projet. Réservé au propriétaire du projet et aux administrateurs.
+
+```bash
+echo '{"limits":[{"category":"compute","limit":300,"alertPercents":[80]}]}' | nimbus services credits limits set 123 --input - --json
+```
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau **Mes crédits** affiche **crédits restants sur** avec un montant cohérent et le badge attendu (**Disponible** en usage normal).
+- Le panneau **Crédits du projet** affiche votre ligne dans **Contributeurs** avec l'engagement saisi (**tout son solde** ou votre montant).
+- L'éditeur **Limites et alertes** affiche **limite `<MONTANT>` crédits/mois** sur chaque poste réglé, où `<MONTANT>` désigne le nombre de crédits saisi, ou **pas de limite** sinon.
+- En CLI, `nimbus credits get --json` renvoie le même solde et `nimbus services credits get 123 --json` affiche votre engagement dans `myCommitment` et les limites du projet.
+
+## Limites
+
+- L'engagement mensuel accepte tout nombre de 0 à 10 000 000 crédits par mois. La valeur nulle (`{"credits": nombre|null}` avec `null` côté API) signifie **Tout mon solde** ; au-delà de 10 000 000, la saisie est refusée en 422.
+- L'enveloppe du projet est répartie au prorata des engagements, plafonnée par le solde et les limites de chacun. Le reliquat non finançable apparaît en **crédits non imputés (aucun contributeur ne pouvait payer)**.
+- Faute de crédits, certaines actions (déploiement, redéploiement, génération IA, ajout de PostgreSQL, augmentation de l'autoscaling, test de charge, démarrage, réveil) sont refusées en 402, mais l'application déjà en cours continue de tourner.
+- Les administrateurs ne sont jamais bloqués et gèrent les allocations dans le panneau **Crédits** de l'administration : [Gérer les crédits en administration](/administration/credits).
+- Le coût estimé en monnaie et le budget d'alerte sont décrits dans la page compagne : [Suivre le coût et le budget](/plateforme/cout-et-budget).
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Indiquez un nombre de crédits positif ou nul.` | Montant d'engagement négatif ou illisible dans le formulaire | Saisissez un nombre de 0 à 10 000 000, ou choisissez **Tout mon solde** |
+| `engagement entre 0 et 10 000 000 crédits par mois` | Engagement hors bornes (422) | Corrigez le montant dans la borne, `null` valant tout le solde |
+| `seuls les propriétaires et les membres du projet s'engagent sur ses crédits` | Rôle insuffisant (403) | Demandez à un propriétaire le rôle membre, ou demandez-lui d'engager ses crédits |
+| `crédits insuffisants pour le <ACTION> : <DETAIL>` | Solde, limite de poste ou enveloppe épuisés (402), où `<ACTION>` est l'action refusée et `<DETAIL>` la raison précise | Augmentez votre engagement ou une limite dans **Crédits du projet**, ou demandez une allocation à un administrateur |
+| `corps de requête invalide : {"credits": nombre ou null} attendu` | Entrée `--input` illisible pour l'engagement (400) | Envoyez un objet avec une clé `credits` valant un nombre ou `null` pour tout le solde |
+| `Nouvelles actions refusées pour : <POSTES>. L'application continue de tourner ; augmentez un engagement ou une limite pour débloquer.` | Un ou plusieurs postes (`<POSTES>` liste les postes bloqués, par exemple `Calcul, IA`) ont épuisé l'enveloppe | Augmentez un engagement ou une limite ; l'application en cours n'est pas arrêtée |
+| `Les crédits sont indisponibles sur cette instance.` | Service de crédits désactivé ou illisible (503) | Réessayez plus tard ou contactez l'équipe Nimbus |
+
+## Pour un agent
+
+1. Demandez le projet concerné et le montant d'engagement mensuel souhaité. Attendez la réponse avant de toucher à quoi que ce soit.
+2. Lisez d'abord l'enveloppe avec `nimbus services credits get 123 --json` et rapportez l'engagement actuel (`myCommitment`).
+3. Demandez l'accord explicite avant de modifier un engagement ou une limite : l'engagement est aussi un plafond de contribution.
+4. Constatez le résultat avec `nimbus services credits get 123 --json` (ligne du contributeur, `myCommitment`, badge de l'enveloppe) et rapportez les montants lus.
+5. Si les crédits sont épuisés, proposez dans l'ordre : relever l'engagement, relever une limite, demander une allocation à un administrateur.
+
+## Voir aussi
+
+- [Suivre le coût et le budget](/plateforme/cout-et-budget)
+- [Recevoir les notifications](/plateforme/notifications)
+- [Gérer les crédits en administration](/administration/credits)

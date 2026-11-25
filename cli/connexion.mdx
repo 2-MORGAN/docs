@@ -1,0 +1,128 @@
+---
+title: "Se connecter avec la CLI Nimbus"
+description: "Connectez la CLI Nimbus avec votre navigateur, vérifiez votre session, quittez proprement et enregistrez votre jeton GitLab."
+keywords: ["CLI Nimbus", "connexion", "auth login", "whoami", "logout", "PAT GitLab", "session 24 h"]
+---
+
+## En bref
+
+Vous connectez la CLI depuis votre navigateur avec `nimbus auth login`, vous contrôlez votre identité avec `nimbus auth whoami` et vous quittez avec `nimbus auth logout`. Votre session reste valable 24 heures, puis vous la renouvelez en relançant la connexion. Vous enregistrez ensuite votre jeton GitLab avec `nimbus pat set` pour lire vos dépôts.
+
+## Avant de commencer
+
+Vous avez installé la CLI en suivant la page /cli/installation, et la commande `nimbus --help` affiche l'aide. Vous choisissez ensuite votre parcours selon votre poste de travail.
+
+- Si votre poste ouvre un navigateur, vous n'avez rien d'autre à préparer : le parcours standard suffit.
+- Si vous travaillez en SSH ou sans navigateur, demandez au préalable un jeton à un opérateur et enregistrez-le dans un fichier privé, avec `chmod 600` sur ce fichier.
+- Si vous utilisez aussi l'interface web, les deux sessions sont indépendantes.
+
+## Se connecter avec le navigateur
+
+<Steps>
+<Step title="Lancez la connexion">
+```sh
+nimbus auth login
+```
+Le terminal affiche une adresse à ouvrir et un code à valider. Votre navigateur s'ouvre automatiquement sur la page d'autorisation, avec le code déjà pré-rempli.
+</Step>
+<Step title="Validez dans le navigateur">
+Ouvrez l'adresse affichée si le navigateur ne s'est pas ouvert seul. Vérifiez que le code correspond à celui du terminal, puis validez. Ne validez que si vous venez de demander ce code vous-même.
+</Step>
+<Step title="Revenez au terminal">
+Le terminal affiche `Connecté : <nom> (<API)>`, avec votre nom d'utilisateur et l'API utilisée, puis il enregistre la session sur votre poste. Vous pouvez maintenant lancer des commandes.
+</Step>
+</Steps>
+
+Votre session reste valable 24 heures. Passé ce délai, vos commandes répondent `401` et vous relancez simplement `nimbus auth login`.
+
+### Les variantes de la connexion
+
+| Situation | Commande complète | Ce qu'elle change |
+| --- | --- | --- |
+| Votre poste n'ouvre pas de navigateur | `nimbus auth login --no-browser` | La CLI n'ouvre rien : vous copiez vous-même l'adresse affichée dans votre navigateur |
+| Vous validez plus tard | `nimbus auth login --no-wait` puis `nimbus auth login --resume` | La première commande affiche le lien puis rend la main ; la seconde reprend la demande en attente |
+| Un opérateur vous a remis un jeton | `nimbus auth login --token-file ./token.txt` | La CLI enregistre ce jeton sans navigateur, après l'avoir vérifié auprès de l'API |
+
+Le fichier `./token.txt` contient votre jeton et rien d'autre. Protégez-le avec `chmod 600 ./token.txt` et placez-le hors de tout dépôt. Les trois variantes `--no-browser`, `--no-wait` et `--resume` concernent le parcours navigateur, tandis que `--token-file` le remplace entièrement.
+
+### Cibler une autre API ou allonger le délai
+
+Par défaut, la CLI réutilise l'API de votre dernière connexion. Vous pouvez viser explicitement l'API de production pour une commande avec `--api`.
+
+```sh
+nimbus --api https://api.2morgan.fun auth whoami
+```
+
+Cette commande vérifie votre session sur l'API indiquée. Vous réglez aussi le délai maximal de chaque requête avec `--timeout`, qui vaut `30s` par défaut.
+
+```sh
+nimbus --timeout 60s auth whoami
+```
+
+Cette commande laisse 60 secondes à la requête au lieu de 30. Ces deux options se placent avant la commande et fonctionnent partout, comme le détaille la page /cli/conventions.
+
+## Vérifier votre identité
+
+```sh
+nimbus auth whoami
+```
+
+Cette commande affiche un tableau avec les colonnes `UTILISATEUR`, `IDENTIFIANT` et `RÔLES`. Si elle répond `401`, votre session est absente ou expirée et vous relancez `nimbus auth login`.
+
+```sh
+nimbus auth whoami --json
+```
+
+Cette variante affiche le même résultat au format JSON, avec les champs `sub`, `username` et `roles`. Elle ne montre jamais votre jeton.
+
+## Quitter proprement
+
+```sh
+nimbus auth logout
+```
+
+Cette commande efface la session enregistrée sur votre poste et affiche `Session locale effacée pour <API>`, avec l'API concernée. La déconnexion est locale : votre jeton reste valable côté serveur jusqu'à la fin de ses 24 heures.
+
+## Enregistrer votre jeton GitLab
+
+Nimbus lit vos dépôts avec votre jeton personnel GitLab, que la CLI appelle PAT. Sans ce jeton, vos projets restent visibles mais les pipelines et les dépôts restent inaccessibles. Vous gérez le même jeton dans l'interface, sur la page **Paramètres**, dans la carte **GitLab EPITA**.
+
+<Steps>
+<Step title="Préparez le fichier du jeton">
+Saisissez votre jeton sans l'afficher dans l'historique du terminal. Vous tapez vous-même cette commande, ou vous écrivez le fichier avec un éditeur de texte :
+```sh
+(umask 077; read -rs VALEUR && printf '%s' "$VALEUR" > ./pat.txt)
+```
+Elle crée `./pat.txt` lisible par vous seul et contenant seulement votre jeton. Placez ce fichier hors de tout dépôt Git. Le jeton vient de votre compte GitLab, avec les scopes `api` et `read_user`.
+</Step>
+<Step title="Contrôlez l'état actuel">
+```sh
+nimbus pat status
+```
+Cette commande affiche les champs `configured`, `required` et, si un jeton existe déjà, votre nom GitLab et sa date d'expiration. Le jeton lui-même ne s'affiche jamais. Ajoutez `--json` pour obtenir le même état au format JSON.
+</Step>
+<Step title="Enregistrez le nouveau jeton">
+```sh
+nimbus pat set --token-file ./pat.txt --expires-at 2027-01-31 --yes
+```
+Cette commande envoie votre jeton à Nimbus pour vérification puis l'enregistre. La valeur `--expires-at` est la date d'expiration déclarée, au format `AAAA-MM-JJ`, et elle doit être postérieure à aujourd'hui. L'option `--yes` confirme l'opération. Vous pouvez supprimer `./pat.txt` après l'enregistrement, et `nimbus pat status --json` vous confirme le résultat.
+</Step>
+</Steps>
+
+Tout nouvel enregistrement remplace le précédent : vous faites une rotation en répétant la commande avec un nouveau fichier. Si Nimbus répond que le jeton est invalide, vérifiez les scopes `api` et `read_user` puis recommencez.
+
+## Si ça échoue
+
+| Message ou symptôme | Cause probable | Geste à faire |
+| --- | --- | --- |
+| `401` sur vos commandes | Votre session de 24 heures a expiré | Relancez `nimbus auth login` puis réessayez |
+| `403` après la connexion | Votre compte n'est pas autorisé sur Nimbus | Prévenez l'équipe Nimbus avec le résultat de `nimbus auth whoami --json` |
+| `502` ou `404` pendant `nimbus auth login` | Panne possible côté serveur pendant la connexion | Prévenez l'équipe Nimbus, ou utilisez `--token-file` avec un jeton fourni par un opérateur |
+| `aucune connexion navigateur en attente pour cette API ; lancer nimbus auth login` avec `--resume` | Aucune demande `--no-wait` n'est en cours pour cette API | Relancez `nimbus auth login --no-wait` puis validez dans le navigateur |
+| `Token GitLab invalide` pendant `pat set` | Le jeton est faux, expiré ou sans les bons scopes | Créez un jeton avec les scopes `api` et `read_user`, puis répétez `nimbus pat set` |
+
+## Voir aussi
+
+- /cli/installation : installez la CLI avant de vous connecter.
+- /cli/conventions : comprenez les options globales, les fichiers et les codes de sortie.
+- /cli/commandes : explorez la référence complète des commandes.

@@ -1,0 +1,113 @@
+# Nimbus : documentation pour humains, agents et CLI
+
+Commencez par ces trois pages, dans l'ordre : elles décrivent le déroulé complet, les règles et les commandes prêtes à adapter.
+
+- https://2morgan.mintlify.app/agents/index.md : le déroulé de référence, installer, connecter, choisir une cible, déployer, vérifier, diagnostiquer.
+- https://2morgan.mintlify.app/agents/regles.md : ce qu'un agent doit demander, ce qu'il ne fait jamais sans accord explicite et comment constater chaque résultat.
+- https://2morgan.mintlify.app/agents/recettes.md : commandes et corps JSON complets, prêts à adapter pour les cas courants.
+
+Interface et ligne de commande :
+
+- https://2morgan.mintlify.app/cli/interface-ou-cli.md : correspondance écran, commande et route par domaine, et ce qui n'existe que d'un côté.
+- https://2morgan.mintlify.app/cli/commandes.md : référence exhaustive des 136 commandes, générée depuis la CLI elle-même.
+- https://2morgan.mintlify.app/cli/installation.md : installer la CLI avant toute commande.
+- https://2morgan.mintlify.app/cli/connexion.md : connecter la CLI et enregistrer le PAT GitLab.
+- https://2morgan.mintlify.app/cli/conventions.md : apprenez une fois les habitudes partagées par toutes les commandes Nimbus : options globales, sélecteurs, codes de sortie, fichiers et confirmations.
+
+Toutes les pages, dans l'ordre de la navigation :
+
+Bien commencer :
+- https://2morgan.mintlify.app/index.md : Nimbus déploie vos dépôts GitLab sur Kubernetes : trouvez votre point de départ selon ce que vous voulez faire.
+- https://2morgan.mintlify.app/demarrer/notions.md : le vocabulaire Nimbus expliqué sans jargon : projet, application, cible, pipeline, coffre, PAT et rôles.
+- https://2morgan.mintlify.app/demarrer/connexion.md : connectez-vous à Nimbus depuis le navigateur ou la CLI, comprenez la session de 24 h et déconnectez-vous.
+- https://2morgan.mintlify.app/demarrer/gitlab.md : créez votre jeton GitLab avec les scopes api et read_user, puis enregistrez-le dans Nimbus depuis l'interface ou la CLI.
+- https://2morgan.mintlify.app/demarrer/premiere-application.md : installez la CLI, connectez-vous, reliez votre compte GitLab et déployez votre premier dépôt sur Nimbus.
+
+Parcours pas à pas :
+- https://2morgan.mintlify.app/parcours/depot-existant.md : reliez une application Nimbus à un dépôt GitLab qui contient déjà du code, puis déployez-la.
+- https://2morgan.mintlify.app/parcours/nouveau-depot.md : créez un dépôt vide depuis Nimbus, poussez votre code local, puis déployez-le.
+- https://2morgan.mintlify.app/parcours/generation-ia.md : faites analyser un dépôt non reconnu par l'IA, examinez la proposition, approuvez-la puis déployez.
+- https://2morgan.mintlify.app/parcours/autre-application.md : déployez n'importe quelle autre application : trouvez le bon parcours selon votre cas.
+- https://2morgan.mintlify.app/parcours/variables-secrets.md : ajoutez une clé API au runtime de mon-appli, partagez le fichier .env local puis publiez les secrets de production.
+- https://2morgan.mintlify.app/parcours/postgresql.md : créez la base PostgreSQL de mon-appli, lisez ses variables de connexion, sauvegardez avant un changement risqué puis restaurez.
+- https://2morgan.mintlify.app/parcours/exposer-application.md : votre application a une adresse HTTP dès le premier déploiement : ajoutez HTTPS, CORS et les protections avec la gateway, puis vérifiez.
+- https://2morgan.mintlify.app/parcours/logs-et-pannes.md : votre application répond en erreur ou ne démarre plus : lisez les journaux, comprenez le diagnostic de déploiement et remettez le service en ligne.
+- https://2morgan.mintlify.app/parcours/ajouter-un-vps.md : rattachez votre propre serveur à Nimbus, déployez-y votre application, puis retirez-le proprement.
+- https://2morgan.mintlify.app/parcours/equipe.md : invitez Alice sur votre projet mon-appli, partagez le projet avec votre classe, puis gérez un départ.
+- https://2morgan.mintlify.app/parcours/classe.md : créez la classe Babbage, importez vos élèves depuis un CSV, contrôlez les inscriptions et corrigez les erreurs.
+
+Dépannage :
+- https://2morgan.mintlify.app/depannage/index.md : trouvez la cause de votre panne dans Nimbus : arbre de décision du symptôme vers la commande ou l'écran qui répare.
+- https://2morgan.mintlify.app/depannage/messages.md : retrouvez chaque message d'erreur exact de Nimbus, sa cause et le geste qui répare, domaine par domaine.
+
+Se repérer :
+- https://2morgan.mintlify.app/plateforme/visite-guidee.md : chaque menu, page, onglet et bouton de Nimbus : où il se trouve, qui le voit et vers quelle page aller ensuite.
+- https://2morgan.mintlify.app/plateforme/roles.md : qui peut faire quoi dans Nimbus : matrice des rôles plateforme student, teacher et admin, matrice des rôles projet owner, member et supervisor.
+
+Déployer :
+- https://2morgan.mintlify.app/plateforme/creer-un-projet.md : créez votre projet Nimbus depuis un dépôt GitLab existant ou un dépôt neuf, dans l'interface ou avec la CLI.
+- https://2morgan.mintlify.app/plateforme/preparer-son-depot.md : adaptez votre application au déploiement Nimbus : port d'écoute, fichiers détectés, variables d'environnement, migrations et branche cnp-deploy.
+- https://2morgan.mintlify.app/plateforme/frameworks.md : comprenez comment Nimbus détecte votre framework et choisissez entre site statique, framework officiel, modèle personnel ou génération IA.
+- https://2morgan.mintlify.app/plateforme/generation-ia.md : votre framework n'est pas reconnu par Nimbus ? Faites analyser votre dépôt par l'IA, examinez la proposition fichier par fichier, approuvez-la puis déployez.
+- https://2morgan.mintlify.app/plateforme/modeles.md : laissez Nimbus détecter votre framework, appliquez une recette officielle ou réutilisez vos fichiers de déploiement.
+- https://2morgan.mintlify.app/plateforme/cibles.md : choisissez où tourne votre application : cible toujours allumée, Azure, edge ou VPS.
+- https://2morgan.mintlify.app/plateforme/branches-et-pipeline.md : travaillez sur votre branche, Nimbus publie sur cnp-deploy puis lance le pipeline GitLab et la synchronisation ArgoCD.
+- https://2morgan.mintlify.app/plateforme/apercus.md : obtenez une URL temporaire pour chaque merge request ouverte, sans toucher à la production.
+
+Exploiter :
+- https://2morgan.mintlify.app/plateforme/etats.md : comprenez les badges d'état de votre application et vérifiez qu'elle tourne avec nimbus services status.
+- https://2morgan.mintlify.app/plateforme/demarrer-arreter.md : allumez ou éteignez votre application depuis son en-tête ou avec nimbus services start et stop, puis suivez l'opération.
+- https://2morgan.mintlify.app/plateforme/redeployer.md : relancez le pipeline de votre application avec le bouton Redéployer, puis activez le redéploiement après chaque push.
+- https://2morgan.mintlify.app/plateforme/disponibilite.md : éteignez votre application hors horaires avec un planning de disponibilité, rallumez-la temporairement et estimez vos économies.
+- https://2morgan.mintlify.app/plateforme/autoscaling.md : activez l'autoscaling pour ajuster automatiquement le nombre de pods selon l'usage du CPU.
+- https://2morgan.mintlify.app/plateforme/quotas-et-tests-de-charge.md : fixez le quota CPU, mémoire et pods de votre projet, puis vérifiez sa tenue avec un test de charge.
+- https://2morgan.mintlify.app/plateforme/supprimer.md : supprimez votre application et sa base PostgreSQL, avec sauvegarde préalable, en sachant que le dépôt GitLab est conservé.
+
+Données et secrets :
+- https://2morgan.mintlify.app/plateforme/variables.md : ajoutez, modifiez et supprimez les variables d'environnement lues par votre application déployée.
+- https://2morgan.mintlify.app/plateforme/coffre-developpement.md : partagez le fichier .env local de votre projet Nimbus : téléchargez, importez et vérifiez le coffre de développement.
+- https://2morgan.mintlify.app/plateforme/coffre-production.md : importez, exportez et resynchronisez le fichier .env.production de votre application Nimbus déployée.
+- https://2morgan.mintlify.app/plateforme/postgresql.md : créez une base PostgreSQL dédiée à votre application, choisissez la migration et retrouvez vos variables de connexion.
+- https://2morgan.mintlify.app/plateforme/sauvegardes.md : créez une sauvegarde de votre base PostgreSQL, téléchargez-la, restaurez-la ou supprimez-la.
+
+Réseau et identité :
+- https://2morgan.mintlify.app/plateforme/url-et-passerelle.md : lisez l'adresse HTTP de votre application dès le premier déploiement, puis ajoutez HTTPS, CORS, débit et taille des requêtes avec la gateway.
+- https://2morgan.mintlify.app/plateforme/cloudflare.md : déployez votre site statique ou SPA sur la cible edge Cloudflare, sans serveur à gérer.
+- https://2morgan.mintlify.app/plateforme/identite-application.md : activez la connexion de votre application avec le compte de l'école, créez des rôles et attribuez-les aux utilisateurs.
+- https://2morgan.mintlify.app/plateforme/isolation.md : comprenez comment Nimbus isole votre application des voisines et où ne pas mettre de secrets sensibles.
+
+Observer :
+- https://2morgan.mintlify.app/plateforme/logs.md : lisez les logs de votre application dans Nimbus : panneau Journaux d'exécution, filtres par période et niveau, ou commandes CLI.
+- https://2morgan.mintlify.app/plateforme/sante-et-ressources.md : vérifiez si votre application est saine, lisez sa consommation CPU et mémoire, et consultez la santé globale de la plateforme.
+- https://2morgan.mintlify.app/plateforme/echecs-de-deploiement.md : lisez le diagnostic de déploiement de votre application : étape en cause, raison de l'échec, pipeline GitLab et liens vers le job fautif.
+- https://2morgan.mintlify.app/plateforme/dependances-et-image.md : gardez les dépendances de votre application à jour et vérifiez que son image ne contient pas de vulnérabilité bloquante.
+- https://2morgan.mintlify.app/plateforme/alertes-discord.md : configurez les alertes Discord de votre application : webhook, test d'envoi, remplacement et suppression.
+
+Coûts et crédits :
+- https://2morgan.mintlify.app/plateforme/cout-et-budget.md : consultez le coût estimé de votre application et fixez un budget mensuel avec seuil d'alerte.
+- https://2morgan.mintlify.app/plateforme/credits.md : lisez votre solde de crédits, contribuez aux projets et plafonnez votre consommation.
+- https://2morgan.mintlify.app/plateforme/notifications.md : ouvrez la cloche Notifications, lisez vos alertes de crédits, puis retrouvez le projet.
+
+Équipe :
+- https://2morgan.mintlify.app/plateforme/membres-et-politique.md : ajoutez des membres à un projet, partagez-le avec une classe et réglez sa politique d'accès.
+- https://2morgan.mintlify.app/plateforme/classes.md : créez des classes, importez des élèves en CSV et inscrivez-les aux projets via les classes.
+
+Serveurs :
+- https://2morgan.mintlify.app/plateforme/vps.md : ajoutez votre serveur VPS, déployez votre appli, retirez-le.
+
+Administration :
+- https://2morgan.mintlify.app/administration/plateforme.md : depuis la page Administration, démarrez ou arrêtez le cluster AKS, vérifiez la santé et relancez la copie GitLab.
+- https://2morgan.mintlify.app/administration/catalogue.md : en tant qu'admin, examinez les bundles des utilisateurs, puis publiez ou retirez les frameworks du catalogue.
+- https://2morgan.mintlify.app/administration/credits.md : depuis la page Administration, suivez la consommation des crédits et ajustez réglages et allocations.
+
+Nimbus CLI :
+- https://2morgan.mintlify.app/cli/installation.md : installez la CLI Nimbus sur macOS, Linux ou Windows avec le script officiel ou l'archive, puis vérifiez votre installation.
+- https://2morgan.mintlify.app/cli/connexion.md : connectez la CLI Nimbus avec votre navigateur, vérifiez votre session, quittez proprement et enregistrez votre jeton GitLab.
+- https://2morgan.mintlify.app/cli/conventions.md : apprenez une fois les habitudes partagées par toutes les commandes Nimbus : options globales, sélecteurs, codes de sortie, fichiers et confirmations.
+- https://2morgan.mintlify.app/cli/commandes.md : toutes les commandes de la CLI Nimbus, avec leurs flags utiles.
+- https://2morgan.mintlify.app/cli/interface-ou-cli.md : correspondance écran, commande et route par domaine, et ce qui n'existe que d'un côté.
+
+Agents IA :
+- https://2morgan.mintlify.app/agents/index.md : installez la CLI, connectez-vous, choisissez une cible et déployez une application pas à pas.
+- https://2morgan.mintlify.app/agents/regles.md : demandez les bons accords, protégez les secrets et reprenez proprement après une erreur.
+- https://2morgan.mintlify.app/agents/recettes.md : commandes complètes et copiables pour déployer, configurer les secrets et exploiter chaque application.

@@ -1,0 +1,131 @@
+---
+title: "Sauvegarder et restaurer votre base PostgreSQL"
+description: "Créez une sauvegarde de votre base PostgreSQL, téléchargez-la, restaurez-la ou supprimez-la."
+keywords: ["sauvegarde", "backup", "restaurer", "postgres", "postgresql", "dump"]
+---
+
+## En bref
+
+Revenez en arrière quand vos données sont abîmées ou perdues : restaurez une sauvegarde. Si seul votre code pose problème et que vos données vont bien, un simple redéploiement suffit et vous n'avez pas besoin de toucher aux sauvegardes.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Fiche application, panneau **Sauvegardes** | `nimbus services postgres backups list`, `create`, `get`, `restore`, `delete` | Liste pour tous les rôles avec la lecture, autres actions pour les propriétaires et administrateurs | La restauration remplace les données immédiatement | Non, mais chaque restauration garde d'abord une sauvegarde de sécurité |
+
+## Avant de commencer
+
+- Une base PostgreSQL existe pour votre application. Vous le vérifiez : la section **Base de données** de l'onglet **PostgreSQL** affiche les champs **Base**, **Hôte**, **Port** et **Utilisateur**.
+- La base est démarrée. Sinon le panneau affiche `Démarrez la base PostgreSQL pour créer ou restaurer une sauvegarde.`
+- Vous êtes propriétaire ou administrateur du projet si vous voulez créer, télécharger, restaurer ou supprimer une sauvegarde. La liste reste visible avec un simple accès en lecture.
+- La CLI est connectée : `nimbus auth whoami` répond sans erreur.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau Sauvegardes">
+Ouvrez la fiche de votre application, puis l'onglet **PostgreSQL**. Le panneau **Sauvegardes** apparaît sous la carte **PostgreSQL** quand une base existe.
+</Step>
+<Step title="Lisez la liste">
+Chaque sauvegarde affiche **Date**, **Taille**, **Origine** et **Auteur**. L'origine vaut `Manuelle`, `Planifiée`, `Avant suppression` ou `Avant restauration`. Sans sauvegarde, le panneau affiche `Aucune sauvegarde disponible.`
+</Step>
+<Step title="Créez une sauvegarde">
+Cliquez sur **Sauvegarder maintenant**. Le panneau affiche `Sauvegarde en cours…` puis `Sauvegarde créée.` La nouvelle ligne apparaît avec l'origine `Manuelle`.
+</Step>
+<Step title="Téléchargez une sauvegarde">
+Cliquez sur **Télécharger** sur la ligne voulue. Le fichier `.dump` se télécharge sur votre poste. Conservez-le hors de Git : il contient vos données.
+</Step>
+<Step title="Restaurez une sauvegarde">
+Cliquez sur **Restaurer** sur la ligne voulue. Le dialogue **Restaurer cette sauvegarde ?** rappelle que le contenu choisi remplacera les données actuelles et que Nimbus sauvegarde d'abord l'état actuel de la base. Cliquez sur **Restaurer la base**. Le panneau affiche `Restauration en cours…` puis `Base restaurée. La sauvegarde de sécurité figure dans la liste.` Vos données sont remplacées immédiatement, et la sauvegarde de sécurité apparaît avec l'origine `Avant restauration`.
+</Step>
+<Step title="Supprimez une sauvegarde">
+Cliquez sur **Supprimer** sur la ligne voulue. Le dialogue **Supprimer cette sauvegarde ?** précise que la sauvegarde choisie sera définitivement supprimée. Cliquez sur **Supprimer la sauvegarde**. Le panneau affiche `Suppression en cours…` puis `Sauvegarde supprimée.`
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les sauvegardes">
+```sh
+nimbus services postgres backups list 42 --json
+```
+Elle renvoie la liste avec les identifiants. Remplacez `42` par l'identifiant de votre application, visible dans sa fiche.
+</Step>
+<Step title="Lisez un identifiant">
+Chaque sauvegarde porte un identifiant `<ID_SAUVEGARDE>` au format date puis origine, par exemple `20240115T020000Z-manual`. Copiez cet identifiant exact depuis la liste : ne l'inventez pas.
+</Step>
+<Step title="Créez une sauvegarde">
+```sh
+nimbus services postgres backups create 42 --json
+```
+Elle crée une sauvegarde manuelle et renvoie son identifiant.
+</Step>
+<Step title="Téléchargez une sauvegarde">
+```sh
+nimbus services postgres backups get 42 <ID_SAUVEGARDE> --output ./sauvegarde.dump
+```
+Elle écrit le fichier `./sauvegarde.dump` sur votre poste. `<ID_SAUVEGARDE>` est l'identifiant copié depuis la liste.
+</Step>
+<Step title="Restaurez une sauvegarde">
+```sh
+nimbus services postgres backups restore 42 <ID_SAUVEGARDE> --yes --json
+```
+`--yes` confirme sans demander. Nimbus crée d'abord une sauvegarde `before-restore`, puis remplace les données immédiatement.
+</Step>
+<Step title="Supprimez une sauvegarde">
+```sh
+nimbus services postgres backups delete 42 <ID_SAUVEGARDE> --yes --json
+```
+`--yes` confirme sans demander. La suppression est définitive.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La liste affiche une ligne par sauvegarde avec sa **Date**, sa **Taille**, son **Origine** et son **Auteur**.
+- Après restauration, vos données correspondent à la sauvegarde choisie, et une ligne d'origine `Avant restauration` figure dans la liste.
+- En CLI, `nimbus services postgres backups list 42 --json` renvoie les sauvegardes par ordre décroissant.
+
+## Limites
+
+- La base doit exister et être démarrée, sinon la création et la restauration sont refusées.
+- La restauration remplace toutes les données actuelles. Elle est immédiate, et seul le filet `before-restore` permet de revenir en arrière.
+- La suppression d'une sauvegarde est définitive, sans filet.
+- La suppression de la base crée d'abord une sauvegarde `before-delete`. La CLI et l'interface tentent toujours cette sauvegarde : si elle échoue, la suppression s'interrompt et l'interface propose de réessayer ou de supprimer sans sauvegarde.
+- Une sauvegarde de plus de `4 Gio` est refusée avec `sauvegarde trop volumineuse`.
+- Si les sauvegardes ne sont pas activées sur la plateforme, le panneau **Sauvegardes** reste masqué et la liste répond `sauvegardes PostgreSQL non configurées sur la plateforme`.
+- Le panneau affiche `Sauvegarde automatique toutes les N h lorsque la base est active.`, où `N` est le nombre d'heures configuré sur votre installation, ou `Sauvegardes automatiques désactivées.`
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Démarrez la base PostgreSQL pour créer ou restaurer une sauvegarde.` | Base arrêtée ou non prête | Démarrez la base, puis réessayez |
+| `Cette sauvegarde ou cette base est introuvable.` | Identifiant inconnu ou base supprimée | Relistez avec `nimbus services postgres backups list 42 --json` et copiez l'identifiant exact |
+| `Aucune sauvegarde disponible.` | Aucune sauvegarde créée | Créez-en une avec **Sauvegarder maintenant** ou `backups create` |
+| `Impossible de récupérer la liste des sauvegardes.` | Droits insuffisants ou service indisponible | Vérifiez votre rôle et votre connexion, puis réessayez |
+| `identifiant de sauvegarde invalide` | Identifiant qui ne respecte pas le format date puis origine | Reprenez l'identifiant exact rendu par la liste |
+| `sauvegarde introuvable` | Identifiant bien formé mais sans sauvegarde correspondante | Relistez et copiez l'identifiant exact |
+| `la base PostgreSQL n'est pas démarrée` | Base arrêtée ou encore en provisioning | Démarrez la base, puis réessayez |
+| `restauration échouée : la base n'a pas été modifiée` | Sauvegarde illisible | Vos données sont intactes : essayez une autre sauvegarde ou contactez l'équipe Nimbus |
+
+## Pour un agent
+
+1. Demandez l'identifiant de l'application. Attendez ici la réponse.
+2. Listez avec `nimbus services postgres backups list 42 --json`, où `42` est l'identifiant de l'application, et copiez l'`<ID_SAUVEGARDE>` exact sans l'inventer.
+3. Demandez l'accord explicite avant toute restauration ou suppression : la restauration remplace les données immédiatement et la suppression est définitive.
+4. Constatez avec `backups list` que la sauvegarde de sécurité figure dans la liste après restauration.
+5. Ne collez jamais le contenu d'un `.dump` dans un chat : il contient les données.
+
+## Voir aussi
+
+- [Ajouter une base PostgreSQL](/plateforme/postgresql)
+- [Gérer les variables](/plateforme/variables)
+- [Redéployer votre application](/plateforme/redeployer)

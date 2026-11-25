@@ -1,0 +1,343 @@
+---
+title: Recettes de commandes pour les agents
+description: Commandes complètes et copiables pour déployer, configurer les secrets et exploiter chaque application.
+keywords: [agent, recette, CLI, postgres, coffre, variable, VPS, pipeline]
+---
+
+Vous trouvez ici des commandes complètes et lançables pour chaque besoin. Dans les exemples, `123` désigne l'identifiant du projet GitLab (champ `gitlab_id` de `nimbus services list --json`, champ `id` de `nimbus gitlab repositories --json`) et `mon-appli` est un nom d'exemple. Seul l'identifiant du groupe (`--namespace-id`, par exemple `12`) est un autre nombre. Demandez les valeurs réelles avant d'exécuter, comme l'exige la page des règles.
+
+## Déployer un dépôt existant
+
+Prérequis : demandez l'identifiant du dépôt, le framework et la cible. Passez toujours `--cluster-id` explicitement.
+
+```bash
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle --json
+```
+
+Elle crée le service, attend la fin du pipeline puis de la synchronisation, puis renvoie le projet créé. Vérifiez ensuite avec `nimbus services status 123 --json`, puis retrouvez l'URL publique avec `nimbus services list --json`.
+
+Pour préparer sans déployer, ajoutez `--prepare-only`. Pour un programme sans HTTP, ajoutez `--worker`. Attention : `--worker` retire seulement le Service et l'adresse, il ne change pas la commande lancée par l'image. Un projet Django en mode worker lance toujours son serveur web : pour une tâche de fond comme Celery, créez un projet à part dans son propre dépôt et passez par la génération IA, puis vérifiez la commande du `Dockerfile` proposé avant d'approuver.
+
+## Créer un dépôt neuf
+
+Prérequis : demandez le nom du projet, le framework et le groupe de création.
+
+```bash
+nimbus services create --name mon-appli --framework go --cluster-id k3s-oracle --namespace-id 12 --json
+```
+
+Elle renvoie le projet à l'état de préparation, sans déploiement. Ici `12` désigne l'identifiant du groupe de création listé par `nimbus gitlab namespaces --json`. Poussez ensuite le code dans le dépôt créé ([séquence Git complète](/parcours/nouveau-depot)), puis déployez avec la recette précédente.
+
+## Générer avec l'IA
+
+Prérequis : le dépôt n'est pris en charge par aucun framework officiel. Le dépôt existe déjà et le code est poussé sur sa branche principale : l'analyse lit le dépôt distant. Ne créez jamais le dépôt avec `services create --framework generated` : la commande est refusée (`un dépôt neuf n'a pas de code à analyser : choisir un framework`). Créez le dépôt sur GitLab, poussez le code, puis retrouvez son identifiant avec `nimbus gitlab repositories --json`. Demandez l'accord de l'humain avant l'analyse et faites-lui valider le plan avant tout déploiement. Ici `123` désigne l'identifiant du dépôt (champ `id` de `nimbus gitlab repositories --json`).
+
+Examinez le dépôt et enregistrez la proposition dans un fichier.
+
+```bash
+nimbus services generation preview --repository-id 123 --output ./preview.json --json
+```
+
+Elle écrit la proposition de déploiement et un jeton d'examen dans `./preview.json`, dans les champs `proposal` et `review_token`. Stockez le jeton dans une variable, sans jamais l'afficher.
+
+```bash
+REVIEW_TOKEN="$(jq -r .review_token ./preview.json)"
+```
+
+Lisez la proposition avec l'humain (`jq .proposal ./preview.json`), puis écrivez `./plan.json` avec les mêmes valeurs que le déploiement visé. La clé `plan` est obligatoire.
+
+```json
+{
+  "plan": {
+    "repository_id": 123,
+    "framework": "generated",
+    "cluster_id": "k3s-oracle"
+  }
+}
+```
+
+Approuvez ensuite avec la commande suivante. Elle écrit un jeton d'approbation dans `./approval.json`, dans le champ `approval_token`.
+
+```bash
+nimbus services generation approve --preview-token "$REVIEW_TOKEN" --approved --input ./plan.json --output ./approval.json --json
+```
+
+Stockez le jeton d'approbation, sans jamais l'afficher.
+
+```bash
+APPROVAL_TOKEN="$(jq -r .approval_token ./approval.json)"
+```
+
+Déployez enfin avec le jeton d'approbation et les mêmes valeurs que le plan.
+
+```bash
+nimbus services configure --repository-id 123 --framework generated --cluster-id k3s-oracle --generated-review-token "$APPROVAL_TOKEN" --json
+```
+
+Elle renvoie le projet déployé. Vérifiez avec `nimbus services status 123 --json`. Ne relancez jamais un plan périmé sans re-vérifier la révision du dépôt.
+
+## Passerelle : HTTPS seul, sans CORS
+
+Prérequis : le service est déployé et ce n'est pas un worker. Demandez l'accord de l'humain, car l'opération redéploie et prend plusieurs minutes.
+
+```bash
+nimbus services gateway set 123 --json
+```
+
+Sans option, elle active HTTPS avec les réglages par défaut (méthodes `read`, requêtes de `10` Mo au plus, CORS et limitation de débit désactivés). Elle renvoie la configuration appliquée. Vérifiez ensuite avec `nimbus services gateway get 123 --json` (`"configured": true`, champ `"url"` rempli). N'ajoutez des options CORS que si un autre site appelle l'API : la référence est la page [passerelle](/plateforme/url-et-passerelle).
+
+## Variables d'environnement
+
+Prérequis : le service est déployé et vous avez le droit de modifier ses variables. Ne passez jamais la valeur en clair.
+
+```bash
+nimbus services env list 123 --json
+```
+
+Elle renvoie les noms des variables et leurs dates de mise à jour, sans les valeurs.
+
+```bash
+nimbus services env create 123 --key MA_CLE --value-file ./valeur.txt --json
+```
+
+Elle renvoie la variable créée et redémarre l'application. Pour modifier, utilisez `set` avec le même fichier.
+
+```bash
+nimbus services env set 123 MA_CLE --value-file ./valeur.txt --json
+```
+
+Elle renvoie la variable mise à jour et redémarre l'application. Pour supprimer, demandez l'accord de l'humain puis lancez la suppression.
+
+```bash
+nimbus services env delete 123 MA_CLE --yes --json
+```
+
+Elle renvoie une confirmation et la variable disparaît définitivement.
+
+## Coffre de développement
+
+Prérequis : demandez l'identifiant du projet. Le contenu n'est jamais affiché.
+
+```bash
+nimbus env status 123 --json
+```
+
+Elle renvoie la version du coffre et sa date de modification.
+
+```bash
+nimbus env pull 123 --output .env --force
+```
+
+Elle écrit le fichier `.env` local sans l'afficher. Pour remplacer le contenu, indiquez la version attendue.
+
+```bash
+nimbus env push 123 --dotenv-file ./.env --expected-version 3 --yes --json
+```
+
+Elle renvoie la nouvelle version du coffre, sans toucher à l'application déployée. Ici `3` désigne la version lue par `status`. En cas de conflit de version, rechargez l'état avant de recommencer.
+
+## Coffre de production
+
+Prérequis : le service est déployé. Tout import et toute resynchronisation redémarrent l'application et exigent l'accord de l'humain.
+
+```bash
+nimbus prod-vault status 123 --json
+```
+
+Elle renvoie les clés enregistrées et la version du coffre, sans les valeurs.
+
+```bash
+nimbus prod-vault export 123 --output ./.env.production --force
+```
+
+Elle écrit le fichier de production sans l'afficher. Pour importer un nouveau contenu, indiquez la version attendue.
+
+```bash
+nimbus prod-vault import 123 --dotenv-file ./.env.production --expected-version 3 --yes --json
+```
+
+Elle remplace le contenu du coffre et met à jour l'application. Pour appliquer le coffre sans changer son contenu, resynchronisez.
+
+```bash
+nimbus prod-vault resync 123 --json
+```
+
+Elle renvoie les clés appliquées et redémarre l'application.
+
+## Base PostgreSQL
+
+Prérequis : le service est déployé sur une cible classique et le framework n'est pas un site statique. Demandez l'accord de l'humain avant toute création ou suppression.
+
+```bash
+nimbus services postgres get 123 --json
+```
+
+Elle renvoie les informations de connexion, sans le mot de passe. Pour créer la base, préparez un fichier d'entrée complet et valide.
+
+```bash
+nimbus services postgres create 123 --db-name monapp --input ./postgres.json --json
+```
+
+Elle renvoie la base créée et injecte les variables `DB_*` dans l'application. Ici `./postgres.json` contient par exemple `{"migration":{"mode":"manual"}}`. Pour supprimer, demandez l'accord explicite puis lancez la suppression.
+
+```bash
+nimbus services postgres delete 123 --yes --json
+```
+
+Elle renvoie une confirmation et la base disparaît définitivement.
+
+Pour les sauvegardes, listez puis créez, restaurez ou supprimez avec l'identifiant daté renvoyé par la liste.
+
+```bash
+nimbus services postgres backups list 123 --json
+```
+
+```bash
+nimbus services postgres backups create 123 --json
+```
+
+```bash
+nimbus services postgres backups get 123 20240115T020000Z-manual --output ./sauvegarde.dump
+```
+
+```bash
+nimbus services postgres backups restore 123 20240115T020000Z-manual --yes --json
+```
+
+```bash
+nimbus services postgres backups delete 123 20240115T020000Z-manual --yes --json
+```
+
+Chaque commande applique la sauvegarde demandée. La restauration sauvegarde d'abord l'état actuel puis remplace les données.
+
+## Statut, pipeline et diagnostic
+
+Prérequis : demandez l'identifiant du service.
+
+```bash
+nimbus services status 123 --json
+```
+
+Elle renvoie l'état du service. Pour l'URL publique, utilisez `nimbus services list --json`.
+
+```bash
+nimbus services pipeline 123 --json
+```
+
+Elle renvoie le statut et l'URL web du pipeline GitLab lié au service.
+
+```bash
+nimbus services deployment-failure 123 --json
+```
+
+Elle renvoie l'étape en cause et le motif du dernier échec. Lisez ce diagnostic avant toute relance, comme l'exige la page des règles.
+
+## Cibles, VPS et pilotage AKS
+
+Prérequis : demandez la cible visée. Pour un VPS, demandez l'adresse SSH du serveur et l'accord explicite avant toute exécution en root.
+
+```bash
+nimbus targets list --json
+```
+
+Elle renvoie les cibles disponibles. Recommandez `k3s-oracle` par défaut. Si la cible `aks` est arrêtée et que l'humain veut seulement déployer, proposez `k3s-oracle` plutôt que de démarrer `aks`.
+
+```bash
+nimbus vps create --label mon-serveur --output vps.json
+```
+
+Elle écrit la réponse complète dans `vps.json`, avec la fiche sous la clé `.vps` et la commande de rattachement sous la clé `.command`. Lisez l'identifiant avec `jq -r .vps.id vps.json`, puis, après l'accord explicite de l'humain, transmettez la commande au serveur sans l'afficher.
+
+```bash
+jq -r .command vps.json | ssh root@<ADRESSE> 'sh -s'
+```
+
+Ici `<ADRESSE>` est l'adresse SSH du serveur. Sinon, transmettez le fichier à l'humain pour qu'il l'exécute lui-même. Supprimez ensuite `vps.json`, car il contient un jeton de jonction.
+
+```bash
+nimbus vps list --json
+```
+
+Elle renvoie vos VPS et leur état. Pour régénérer une commande expirée, utilisez `join` avec l'identifiant du VPS.
+
+```bash
+nimbus vps join vps-mon-serveur-a1b2 --output vps.json
+```
+
+Elle écrit une nouvelle réponse complète dans `vps.json`. Pour retirer un serveur, demandez l'accord puis vérifiez qu'aucun service ne le cible.
+
+```bash
+nimbus vps delete vps-mon-serveur-a1b2 --yes --json
+```
+
+Elle renvoie une confirmation de retrait. Pour le cluster mutualisé, lisez l'état puis demandez l'accord d'un administrateur avant tout démarrage ou arrêt.
+
+```bash
+nimbus clusters power get aks --json
+```
+
+```bash
+nimbus clusters power set aks --action start --yes --json
+```
+
+La première renvoie l'état du cluster, la seconde le démarre. Remplacez `start` par `stop` pour l'arrêter.
+
+## Crédits et notifications
+
+Prérequis : demandez l'identifiant du service quand la commande porte sur un projet. Lisez d'abord, ne modifiez qu'après accord explicite de l'humain.
+
+```bash
+nimbus credits get --json
+```
+
+Elle renvoie votre compte de crédits du mois : allocation, bonus, disponible, consommé par poste et solde.
+
+```bash
+nimbus services credits get 123 --json
+```
+
+Elle renvoie l'enveloppe de crédits du projet `123` : engagements, consommation et blocage éventuel.
+
+```bash
+nimbus notifications list --unread --limit 20 --json
+```
+
+Elle renvoie vos notifications les plus récentes, dont les actions refusées. Si une action est refusée avec `402`, le message commence par `crédits insuffisants pour le` suivi du poste et de la raison. Retrouvez alors le détail avec les deux commandes de crédits ci-dessus.
+
+Pour marquer comme lu, utilisez l'identifiant renvoyé par `list`. Ici `42` désigne cet identifiant.
+
+```bash
+nimbus notifications read 42 --json
+```
+
+```bash
+nimbus notifications read-all --json
+```
+
+La première marque une notification comme lue, la seconde toutes. Pour modifier un engagement ou des limites, demandez le montant et l'accord explicite, car l'engagement est aussi un plafond de contribution.
+
+```bash
+nimbus services credits commitment set 123 --credits 40 --json
+```
+
+Elle fixe votre engagement mensuel sur le projet `123`. Sans `--credits`, vous engagez tout votre solde. Pour les limites personnelles ou du projet, passez un objet `limits` avec les postes `compute`, `storage`, `ai`, `other` et `total`.
+
+```bash
+echo '{"limits":[{"category":"total","limit":500,"alertPercents":[80]}]}' | nimbus credits limits set --input - --json
+```
+
+```bash
+echo '{"limits":[{"category":"compute","limit":300,"alertPercents":[80]}]}' | nimbus services credits limits set 123 --input - --json
+```
+
+La première remplace vos limites personnelles, la seconde celles du projet (réservée au propriétaire du projet et aux administrateurs). En tant qu'administrateur, retrouvez l'utilisateur par sa recherche puis lisez et ajustez son compte, avec un motif obligatoire.
+
+```bash
+nimbus users search --query alice --json
+```
+
+```bash
+nimbus admin credits users set <SUB> --kind bonus --credits 300 --reason "Projet de fin d'année" --json
+```
+
+Ici `<SUB>` désigne le champ `sub` renvoyé par la recherche. Avec `--kind monthly` et sans `--credits`, vous ramenez l'utilisateur à l'allocation par défaut.

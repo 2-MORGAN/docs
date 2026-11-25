@@ -1,0 +1,114 @@
+---
+title: "Branches et pipeline : ce que Nimbus publie et lance"
+description: "Travaillez sur votre branche, Nimbus publie sur cnp-deploy puis lance le pipeline GitLab et la synchronisation ArgoCD."
+keywords: ["cnp-deploy", "pipeline", "argocd", "branche source", "prepare-only", "déploiement"]
+---
+
+## En bref
+
+Vous écrivez votre code sur votre branche. Nimbus publie les fichiers de déploiement, puis construit et met en ligne votre application.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Projets** > **Nouveau projet**, puis la fiche du service | `nimbus services pipeline 123 --json` | Propriétaire ou administrateur du projet pour déployer, tout membre pour suivre le pipeline | Dès que vous cliquez sur **Déployer l'application** | Non côté Git une fois lancé (`cnp-deploy` publiée) |
+
+## Avant de commencer
+
+- Votre code est poussé sur la branche source, c'est à dire la branche par défaut du dépôt ou `main`. Vérifiez-la dans GitLab avant de commencer.
+- Vous connaissez l'identifiant du service, noté `123` dans cette page. Retrouvez-le avec `nimbus services status 123 --json`.
+- Vous avez choisi une cible de déploiement, notée `<ID_CIBLE>` dans cette page. C'est l'identifiant de la cible (par exemple `k3s-oracle`), retrouvé avec `nimbus targets list --json`.
+- Vous savez si votre code est prêt. Sinon, préparez le projet sans le déployer, comme expliqué ci-dessous.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Choisissez de préparer ou de déployer">
+Ouvrez **Projets**, puis cliquez sur **Nouveau projet**. Avancez avec **Continuer** jusqu'à l'étape **Vérifier le projet** (le bouton **Précédent** vous fait revenir en arrière). Si votre code n'est pas prêt, laissez la case **Déployer ce dépôt maintenant** décochée. Le résumé annonce que **Le projet sera enregistré en développement…**, sans pipeline ni ressources. Cliquez sur **Créer le projet** et le bandeau **Préparation du projet en cours** s'affiche. Si votre code est prêt, cochez la case. Le résumé annonce que **Vous lancez explicitement le pipeline…** du dépôt. Cliquez sur **Déployer l'application** et le bandeau **Déploiement en cours** s'affiche. Une fois lancé, ce déploiement écrit dans Git et ne peut plus être annulé côté dépôt.
+</Step>
+<Step title="Laissez Nimbus écrire sur cnp-deploy">
+Ne travaillez jamais sur la branche `cnp-deploy`. Nimbus la remplit seul et ArgoCD la surveille, avec le dossier `k8s` comme source. Votre travail reste sur la branche source. Nimbus y publie le `Dockerfile`, le fichier `.gitlab-ci.yml`, le fichier `cnp.yaml`, les manifests `k8s/deployment.yaml`, `k8s/service.yaml` et `k8s/ingress.yaml` (plus la base et les migrations si vous avez demandé PostgreSQL), ainsi que les sujets `cnp-2morgan`, `cloud-native` et celui de votre framework. Le lien **Voir les fichiers requis** explique ce que votre dépôt doit contenir. Sur une proposition générée par IA, les onglets **Dockerfile**, **Image de build** et **Commandes CI** montrent le contenu prévu.
+</Step>
+<Step title="Suivez le pipeline puis la synchronisation">
+Le lancement suit toujours le même ordre. GitLab construit et teste d'abord votre application, ce qui prend jusqu'à dix minutes. Puis ArgoCD synchronise le résultat vers votre cible. Gardez le bandeau affiché jusqu'au bout et ne relancez rien entre temps.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Préparez le projet sans déployer">
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id <ID_CIBLE> --prepare-only
+```
+Elle enregistre le projet en développement, sans lancer de pipeline. Ici `123` est l'identifiant GitLab du dépôt, `go` est son framework (adaptez-le à votre code), `<ID_CIBLE>` est l'identifiant de la cible, et `--prepare-only` demande la préparation sans déploiement.
+</Step>
+<Step title="Déployez quand votre code est prêt">
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id <ID_CIBLE>
+```
+Elle publie les fichiers sur `cnp-deploy`, puis lance le pipeline GitLab et la synchronisation ArgoCD. Prévoyez jusqu'à dix minutes, sans interrompre la commande. Une fois lancée, elle écrit dans Git et ne peut plus être annulée côté dépôt.
+</Step>
+<Step title="Suivez l'avancement">
+```sh
+nimbus services pipeline 123 --json
+```
+Elle affiche l'état du pipeline GitLab au format JSON, où `123` est l'identifiant du service. En cas d'échec, affichez la cause exacte :
+```sh
+nimbus services deployment-failure 123 --json
+```
+Elle renvoie l'étape et le code de l'échec. Pour l'état général :
+```sh
+nimbus services status 123 --json
+```
+Elle renvoie la fiche complète du service au format JSON. Pour relancer un déploiement qui a déjà été préparé :
+```sh
+nimbus services redeploy 123
+```
+Elle relance le pipeline puis la synchronisation sur la même configuration.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Dans l'interface, le bandeau **Déploiement en cours** disparaît et la fiche du service affiche votre application comme en ligne, avec son URL publique.
+- En CLI, `nimbus services pipeline 123 --json` montre un pipeline réussi, et `nimbus services status 123 --json` renvoie un service joignable.
+
+## Limites
+
+- Ne poussez rien sur `cnp-deploy` et ne la fusionnez nulle part. Nimbus peut la réécrire à chaque déploiement.
+- La branche source est la branche par défaut du dépôt, ou `main`. ArgoCD ne suit que `cnp-deploy`.
+- Le pipeline peut durer jusqu'à dix minutes avant la synchronisation. Ne relancez rien pendant l'attente.
+- La préparation (`Créer le projet`, `--prepare-only`) ne publie rien. Le déploiement (`Déployer l'application`) publie sur `cnp-deploy`, et cet effet côté Git est définitif.
+- La préparation seule ne provisionne pas PostgreSQL. Ajoutez la base au moment du déploiement.
+
+## Si ça échoue
+
+| Message ou code exact | Cause | Geste |
+| --- | --- | --- |
+| `les sources ont changé ; générer et examiner une nouvelle proposition` (erreur 409) | Votre code a bougé entre la génération IA et son approbation | Régénérez une proposition, examinez ses onglets, puis approuvez-la |
+| `render_failed`, `publish_failed`, `deploy_tokens_failed` ou `environment_secret_failed` (étape `preparation`) | Les fichiers n'ont pas pu être générés ou publiés, ou un secret manque | Corrigez votre dépôt (port, `Dockerfile`, framework), puis relancez avec `nimbus services redeploy 123` |
+| `job_failed`, `pipeline_failed`, `pipeline_canceled`, `pipeline_skipped`, `pipeline_manual`, `pipeline_timeout` ou `pipeline_not_found` (étape `pipeline`) | Le pipeline a échoué, a été annulé ou reste introuvable | Lisez `nimbus services deployment-failure 123`, corrigez le build, puis redéployez |
+| `sync_failed`, `sync_timeout` ou `deploy_credentials_missing` (étape `argocd_sync`) | ArgoCD n'a pas pu synchroniser vers la cible | Vérifiez que la cible est allumée, puis redéployez |
+| `application_degraded`, `workload_failed` ou `restart_failed` (étape `kubernetes`) | L'application tourne mal | Consultez les logs du service, corrigez la configuration, puis redéployez |
+
+<Note>Le détail de chaque panne (les 4 étapes et les 17 codes `reason`) est expliqué sur la page des échecs de déploiement.</Note>
+
+## Pour un agent
+
+1. Demandez à l'utilisateur si son code est prêt et sur quelle cible il veut déployer. Attendez sa réponse avant de lancer quoi que ce soit.
+2. Ne touchez jamais à la branche `cnp-deploy`, ni pour la lire en vue de la modifier, ni pour y écrire. Ne proposez jamais de la fusionner.
+3. Préparez d'abord avec `--prepare-only`, puis demandez l'accord explicite avant de déployer, car le déploiement écrit dans Git de façon irréversible.
+4. Constatez le résultat avec `nimbus services pipeline 123 --json` puis `nimbus services status 123 --json`, où `123` est l'identifiant du service. En cas d'échec, lisez `nimbus services deployment-failure 123 --json`.
+
+## Voir aussi
+
+- [Diagnostiquer un échec de déploiement](/plateforme/echecs-de-deploiement)
+- [Redéployer une application](/plateforme/redeployer)
+- [Préparer son dépôt](/plateforme/preparer-son-depot)

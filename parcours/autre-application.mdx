@@ -1,0 +1,189 @@
+---
+title: "Déployer n'importe quelle autre application"
+description: "Déployez une application Flask, Express, FastAPI, Rust, PHP, avec Dockerfile, monorepo, Redis, WebSocket, SQLite ou tâche planifiée."
+keywords: ["Flask", "Express", "FastAPI", "Dockerfile", "monorepo", "Redis", "WebSocket", "SQLite", "docker-compose", "worker"]
+---
+
+Votre application n'utilise aucun framework natif (`go`, `nextjs`, `springboot`, `nestjs`, `django`, `static`, `spa`). Vous passez alors par la génération IA (`generated`), avec un projet par processus et des contournements simples pour les cas non pris en charge.
+
+| Mon application est… | Chemin Nimbus | Page |
+| --- | --- | --- |
+| Code local sans dépôt distant | Créez le dépôt sur GitLab, poussez, puis génération IA | [Génération IA](/parcours/generation-ia) |
+| Flask ou FastAPI | Génération IA (`generated`) | [Génération IA](/parcours/generation-ia) |
+| Express ou bot Node | Génération IA (`generated`) | [Génération IA](/parcours/generation-ia) |
+| Rust, PHP ou autre langage | Génération IA (`generated`) | [Génération IA](/parcours/generation-ia) |
+| Dockerfile déjà présent | Indice pour l'IA, fichiers réécrits | [Génération IA](/parcours/generation-ia) |
+| Front plus API dans un dépôt | Un projet par composant | [Préparer son dépôt](/plateforme/preparer-son-depot) |
+| `docker-compose.yml` | Un projet par service | [Préparer son dépôt](/plateforme/preparer-son-depot) |
+| Besoin Redis ou autre base | Service externe plus variable | [PostgreSQL](/plateforme/postgresql) |
+| WebSocket | À vérifier sur votre installation | [URL et passerelle](/plateforme/url-et-passerelle) |
+| Port imposé ou variable `PORT` | Écoute du port proposé sur `0.0.0.0` | [Génération IA](/parcours/generation-ia) |
+| Fichiers téléversés | Stockage externe | [Préparer son dépôt](/plateforme/preparer-son-depot) |
+| Tâches planifiées | Worker déclenché de l'extérieur | [Génération IA](/parcours/generation-ia) |
+| SQLite | Migrer vers PostgreSQL | [PostgreSQL](/plateforme/postgresql) |
+| Plusieurs processus | Un projet par processus | [Préparer son dépôt](/plateforme/preparer-son-depot) |
+
+## Avant de commencer
+
+Vous avez besoin d'un compte Nimbus, d'un dépôt sur `gitlab.cri.epita.fr` et de la CLI connectée. Votre code est déjà poussé sur la branche principale du dépôt : l'analyse IA lit le dépôt distant, jamais votre machine.
+
+1. Vérifiez la session avec `nimbus auth whoami`.
+2. Vérifiez l'IA avec `nimbus services generation capabilities --json`.
+3. Retrouvez l'identifiant de votre dépôt avec `nimbus gitlab repositories --json`, par exemple `123`.
+4. Placez les marqueurs à la racine. Ne modifiez jamais `Dockerfile`, `.gitlab-ci.yml`, `cnp.yaml` ou `k8s/`. Ils sont écrasés à chaque déploiement sur la branche `cnp-deploy`.
+
+Ne créez pas le dépôt avec Nimbus dans ce parcours : la commande `services create` refuse le framework `generated`. Créez le dépôt directement sur `gitlab.cri.epita.fr`, puis poussez-y votre code.
+
+## Parcours
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Créez le dépôt sur GitLab et poussez votre code">
+Créez un dépôt vide sur `gitlab.cri.epita.fr`, puis poussez-y votre code sur la branche principale. La création depuis Nimbus exige un framework reconnu et refuse la génération IA sur un dépôt neuf, donc elle ne convient pas ici.
+</Step>
+<Step title="Importez le dépôt dans Nimbus">
+Ouvrez `https://cnp.2morgan.fun` et cliquez sur **Nouveau projet**. À l'étape **Choisir un dépôt GitLab**, choisissez **Importer un dépôt** et sélectionnez votre dépôt. Quand le message « Ce framework n'est pas pris en charge par Nimbus. Vous pouvez faire générer les fichiers de déploiement. » apparaît, cliquez sur **Générer avec l'IA**. Le dialogue **Analyser le dépôt avec l'IA ?** s'affiche : cliquez sur **Analyser le dépôt** et patientez jusqu'à deux minutes.
+</Step>
+<Step title="Examinez la proposition">
+Le panneau **Proposition IA** affiche trois onglets : **Dockerfile**, **Image de build** et **Commandes CI**. Ouvrez chaque onglet et lisez-le : écoute sur `0.0.0.0` avec le port proposé, image de base épinglée, `EXPOSE` du port final. Refusez les commandes dangereuses (`curl|sh`, `docker push`, `kubectl`, `helm`). Cliquez sur **J'ai examiné ce fichier** pour chaque fichier relu, puis cochez la case **J'ai examiné le Dockerfile, les commandes exécutables générées et leurs permissions dans la CI**. Le badge passe à **Prête à approuver** quand tout est relu.
+</Step>
+<Step title="Déployez">
+Choisissez la **Cible de déploiement**, par exemple la cible allumée en permanence. Cochez **Déployer ce dépôt maintenant**, sinon le projet est seulement créé sans déploiement. Cliquez sur **Déployer l'application**. La mention **Déploiement en cours** s'affiche et le pipeline démarre. L'opération peut prendre jusqu'à dix minutes. La proposition expire après vingt minutes : si le dépôt change entre l'analyse et l'approbation, recommencez.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Créez le dépôt sur GitLab et poussez votre code">
+Créez un dépôt vide sur `gitlab.cri.epita.fr`, puis poussez-y votre code sur la branche principale. N'utilisez pas `services create` ici : la commande refuse le framework `generated` avec `un dépôt neuf n'a pas de code à analyser : choisir un framework`. Retrouvez ensuite l'identifiant du dépôt avec la commande suivante. Dans la suite, `123` désigne cet identifiant.
+```sh
+nimbus gitlab repositories --json
+```
+</Step>
+<Step title="Lancez l'analyse">
+Lancez l'analyse avec la commande suivante. Elle écrit la proposition dans `preview.json` et peut prendre jusqu'à deux minutes.
+```sh
+nimbus services generation preview --repository-id 123 --output ./preview.json
+```
+Relisez la proposition avec `jq .proposal ./preview.json` : port entre 1024 et 65535, image de base épinglée, `EXPOSE` du port final, utilisateur numérique. Refusez les commandes dangereuses (`curl|sh`, `docker push`, `kubectl`, `helm`). Stockez le jeton d'examen dans une variable, sans jamais l'afficher.
+```sh
+REVIEW_TOKEN="$(jq -r .review_token ./preview.json)"
+```
+</Step>
+<Step title="Approuvez le plan">
+Créez `plan.json` avec le contenu exact suivant. Il décrit le déploiement que vous approuvez.
+```json
+{
+  "plan": {
+    "repository_id": 123,
+    "framework": "generated",
+    "cluster_id": "k3s-oracle"
+  }
+}
+```
+Approuvez avec la commande suivante. Elle écrit le jeton d'approbation dans `approval.json`.
+```sh
+nimbus services generation approve --preview-token "$REVIEW_TOKEN" --approved --input ./plan.json --output ./approval.json
+```
+Pour un worker (tâche de fond comme Celery, bot sans HTTP), le plan doit contenir `"worker": true`, comme dans l'exemple suivant. Le plan approuvé et `configure` doivent porter la même valeur de `worker`, sinon le déploiement est refusé avec `le plan a changé : examiner et approuver à nouveau`.
+```json
+{
+  "plan": {
+    "repository_id": 123,
+    "framework": "generated",
+    "cluster_id": "k3s-oracle",
+    "worker": true
+  }
+}
+```
+</Step>
+<Step title="Déployez avec le jeton d'approbation">
+Stockez le jeton d'approbation dans une variable, sans jamais l'afficher.
+```sh
+APPROVAL_TOKEN="$(jq -r .approval_token ./approval.json)"
+```
+Lancez ensuite le déploiement avec la commande suivante, avec les mêmes valeurs que `plan.json`.
+```sh
+nimbus services configure --repository-id 123 --framework generated --cluster-id k3s-oracle --generated-review-token "$APPROVAL_TOKEN"
+```
+Elle attend la fin du pipeline et de la synchronisation, jusqu'à dix minutes. Le plan déployé doit être identique au plan approuvé : toute modification du dépôt entre-temps exige une nouvelle analyse. Pour un worker, ajoutez `--worker` avec les mêmes valeurs que `plan.json`, comme dans l'exemple suivant.
+```sh
+nimbus services configure --repository-id 123 --framework generated --cluster-id k3s-oracle --worker --generated-review-token "$APPROVAL_TOKEN"
+```
+Pour réutiliser une recette privée sans nouvel appel IA, utilisez `--template-id` (50 modèles par utilisateur).
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+Un `Dockerfile` déjà présent dans le dépôt sert seulement d'indice pour l'IA et n'est jamais réutilisé tel quel : le déploiement utilise toujours le `Dockerfile` de la proposition approuvée, que vous ne pouvez pas modifier à la main. Vous pouvez seulement l'approuver ou demander une nouvelle analyse.
+
+## Monorepo, compose et plusieurs processus
+
+Pas de monorepo, pas de sous dossier, pas de `docker-compose.yml`. Un seul conteneur par projet, sans sidecar. Un projet utilise un seul mode, HTTP ou worker.
+
+1. Créez un dépôt par composant, avec ses marqueurs à la racine. Séparez par exemple le front et l'API.
+2. Convertissez chaque service compose en un projet distinct.
+3. Séparez chaque processus en un projet avec son propre dépôt. L'API web forme un projet HTTP, le travail de fond forme un projet à part.
+4. Déployez l'API d'abord : obtenez son adresse publique, activez sa passerelle pour passer en HTTPS, puis autorisez l'origine du front dans ses origines CORS.
+```sh
+nimbus services gateway set 123 --cors-origins https://<ORIGINE-DU-FRONT> --cors-methods full --json
+```
+`123` est l'identifiant du service API et `<ORIGINE-DU-FRONT>` son adresse `https`, par exemple l'URL publique de votre front. Un front servi en HTTPS ne peut pas appeler une API en HTTP, car le navigateur refuse l'appel.
+5. Figez l'adresse dans le front : écrivez `VITE_API_URL=https://<URL-DE-VOTRE-API>` dans un fichier `.env.production` à la racine du dépôt du front, où `<URL-DE-VOTRE-API>` est l'**Adresse publique** de l'API. Versionnez ce fichier sans secret, puis déployez le front : la valeur est figée au moment du build.
+6. Pour un programme sans HTTP, cochez **Application sans HTTP (worker)** ou ajoutez `--worker`. Avec la génération IA, mettez `worker` des deux côtés : `"worker": true` dans `plan.json` et `--worker` dans `configure`, sinon l'approbation est refusée. Le worker n'a pas d'URL. Toute application web obtient une adresse HTTP même sans passerelle. Attention : ce mode retire seulement le Service et l'adresse, il ne change pas la commande lancée par l'image. Un second projet Django en mode worker lancerait donc toujours le serveur web, pas Celery.
+
+Pour une tâche de fond comme Celery, créez un projet à part dans son propre dépôt et passez par la génération IA du parcours ci-dessus : décrivez la commande de démarrage dans le dépôt, par exemple avec un script de lancement, puis vérifiez dans l'onglet **Dockerfile** de la proposition que la commande lance bien votre traitement avant d'approuver. Mettez `"worker": true` dans `plan.json` et `--worker` dans `configure`, comme dans les exemples du parcours. Le `Dockerfile` proposé ne se modifie pas à la main : vous pouvez seulement l'approuver ou demander une nouvelle analyse avec **Régénérer**.
+
+## Bases, fichiers et tâches planifiées
+
+PostgreSQL est la seule base gérée. Le disque est éphémère. Il n'y a pas de cron natif.
+
+1. Migrez SQLite vers PostgreSQL. Les fichiers SQLite sont perdus au redéploiement.
+2. Pour Redis ou une autre base, utilisez un service externe et déclarez son adresse dans une variable d'environnement.
+3. Envoyez les fichiers téléversés vers un stockage externe. Tout fichier local disparaît au redéploiement.
+4. Pour une tâche planifiée, utilisez un worker déclenché de l'extérieur ou un service externe de planification.
+
+## Ports et WebSocket
+
+Écoutez le port imposé par le framework natif (`8080` pour `go` et `springboot`, `3000` pour `nextjs` et `nestjs`, `8000` pour `django`, `80` pour `static` et `spa`) ou le port de la proposition IA. `EXPOSE` est exigé seulement pour `generated`. Pour WebSocket, rien n'est configuré contre dans Nimbus, mais vérifiez le comportement sur votre installation avant de le considérer comme acquis.
+
+## Vérifier
+
+- La fiche du projet affiche le badge **En ligne** une fois le déploiement terminé.
+- La commande suivante affiche l'état du service créé.
+```sh
+nimbus services status 123 --json
+```
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `un dépôt neuf n'a pas de code à analyser : choisir un framework` | Dépôt créé avec `services create --framework generated` | Créez le dépôt sur GitLab, poussez le code, puis lancez `generation preview` |
+| `aperçu invalide ou expiré` | Proposition de plus de vingt minutes | Relancez `generation preview` et approuvez à nouveau |
+| `les sources ont changé ; générer et examiner une nouvelle proposition` | Dépôt modifié pendant la procédure | Figez le dépôt, puis relancez l'analyse |
+| `générer et examiner la proposition avant le déploiement` | Déploiement sans approbation | Passez d'abord par l'analyse puis l'approbation |
+| `429` avec `Retry-After` | Quota horaire ou appels concurrents atteints | Attendez le délai indiqué puis relancez |
+
+## Pour un agent
+
+Examinez le dépôt local dans cet ordre, puis appliquez le chemin correspondant. Demandez toujours l'accord explicite avant d'envoyer des éléments du dépôt à l'IA. Ne lancez jamais `services create --framework generated` : la commande est refusée. Le dépôt doit déjà exister avec le code poussé avant `generation preview`.
+
+1. Marqueurs racine connus (`go.mod`, `package.json`, `pom.xml`, `requirements.txt`) ? Orientez vers le framework natif.
+2. Fichier `Dockerfile` ou `docker-compose.yml` ? Traitez le `Dockerfile` comme un indice seulement, et découpez chaque service compose en un projet.
+3. Plusieurs applications ou sous dossier ? Refusez le monorepo, demandez un dépôt par composant.
+4. Base, stockage local ou tâche planifiée ? Proposez PostgreSQL pour SQLite, un service externe pour Redis et les fichiers, un worker externe pour le cron.
+5. Quel port et quelle adresse ? Imposez `0.0.0.0` avec le port de la proposition IA, puis suivez analyse, approbation et déploiement.
+6. Processus de fond comme Celery ? Vérifiez que la commande du `Dockerfile` proposé lance le traitement : un projet natif en `--worker` garde sa commande web et ne convient pas.
+
+## Voir aussi
+
+- [Frameworks pris en charge](/plateforme/frameworks)
+- [Génération IA](/plateforme/generation-ia)
+- [Préparer son dépôt](/plateforme/preparer-son-depot)

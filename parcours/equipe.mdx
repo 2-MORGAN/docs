@@ -1,0 +1,104 @@
+---
+title: "Inviter quelqu'un sur votre projet et partager avec une classe"
+description: "Invitez Alice sur votre projet mon-appli, partagez le projet avec votre classe, puis gérez un départ."
+keywords: ["équipe projet", "inviter membre", "partager classe", "membres et accès", "quitter projet"]
+---
+
+Vous êtes responsable du projet mon-appli et vous voulez y faire travailler Alice, puis toute votre classe, sans perdre le contrôle des accès.
+
+## Avant de commencer
+
+- Vous avez un projet existant : ici le projet `123`, nommé mon-appli.
+- Vous êtes propriétaire du projet ou administrateur : seuls ces rôles gèrent les membres. Le champ `my_role` de `members list` vous donne votre rôle.
+- Alice s'est déjà connectée une fois à Nimbus, sinon son compte est inconnu et l'ajout échoue.
+- Vous connaissez la classe à partager : retrouvez son identifiant avec `nimbus classes list --json` (`7` ici).
+- Vérifiez votre session avec `nimbus auth whoami`, qui doit répondre sans erreur.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez les accès du projet">
+Ouvrez votre projet, puis cliquez sur l'onglet **Membres et accès**. Le panneau **Membres du projet** liste les membres directs.
+</Step>
+<Step title="Invitez Alice comme Membre">
+Saisissez le nom d'utilisateur Nimbus d'Alice dans le formulaire d'ajout. Choisissez le rôle **Membre**. Cliquez sur **Ajouter le membre**. Alice rejoint alors le tableau.
+</Step>
+<Step title="Partagez le projet avec toute la classe">
+Trouvez la carte **Accès des classes** sur le même onglet. Choisissez la classe (**Classe**) et le rôle **Membre** (**Rôle de la classe**), puis cliquez sur **Enregistrer l’accès**. Confirmez la demande `Partager avec ${name} ?`, où `${name}` est le nom de la classe. Chaque élève actuel et futur hérite alors du rôle. Les droits GitLab restent gérés dans GitLab.
+</Step>
+<Step title="Gérez un départ ou un retrait">
+Pour quitter le projet, cliquez sur la carte **Quitter le projet**, puis sur **Confirmer le départ**. Les accès hérités de vos classes seront conservés. Pour retirer quelqu'un, cliquez sur **Retirer** sur sa ligne. Confirmez ensuite le retrait. Si le message **La liste est verrouillée : seuls les administrateurs peuvent gérer les membres de ce projet.** s'affiche, demandez à un administrateur.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Retrouvez le compte d'Alice">
+```sh
+nimbus users search --query alice --json
+```
+Cette commande renvoie le nom d'utilisateur exact d'un compte déjà connecté une fois. Sans résultat, demandez à Alice de se connecter une fois, puis recommencez. Si elle répond `accès refusé`, elle est réservée aux enseignants et administrateurs : demandez à Alice son nom exact.
+</Step>
+<Step title="Listez les membres actuels">
+```sh
+nimbus services members list 123 --json
+```
+Elle renvoie les membres directs, les partages par classe et votre rôle sur le projet `123`.
+</Step>
+<Step title="Ajoutez Alice comme membre">
+```sh
+nimbus services members set 123 --username alice --role member --json
+```
+Elle ajoute Alice au projet `123` avec le rôle membre.
+</Step>
+<Step title="Partagez avec toute la classe">
+```sh
+nimbus services classes set 123 7 --role member --json
+```
+Elle partage le projet `123` avec la classe `7`. Chaque élève actuel et futur hérite du rôle membre. Les droits GitLab restent gérés dans GitLab.
+</Step>
+<Step title="Retirez un membre au départ">
+```sh
+nimbus services members delete 123 <SUB> --yes --json
+```
+Elle retire le membre du projet `123`. `<SUB>` est le sujet du membre affiché par `members list` ; pour votre départ, indiquez votre propre sujet. `--yes` évite la confirmation.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- L'onglet **Membres et accès** affiche Alice avec le rôle **Membre**.
+- La carte **Accès des classes** affiche votre classe et son rôle.
+- En CLI, `nimbus services members list 123 --json` renvoie membres et partages à jour.
+- Après un retrait, la personne a disparu de la liste.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `utilisateur inconnu : la personne doit s'être connectée une fois à Nimbus` | La personne ne s'est jamais connectée. | Demandez-lui de se connecter une fois, puis recommencez. |
+| `le projet doit garder au moins un propriétaire` | Vous retirez le dernier propriétaire du projet, ce qui est interdit. | Désignez d'abord un autre **Propriétaire**, puis retirez la personne. |
+| `La liste est verrouillée : seuls les administrateurs peuvent gérer les membres de ce projet.` | La politique du projet verrouille la liste. | Demandez à un administrateur. |
+| `les membres de ce projet sont ceux de son équipe : modifiez l'équipe du cours` | Projet géré par une équipe de cours. | Modifiez l'équipe dans le cours, pas les membres directs. |
+
+## Pour un agent
+
+1. Demandez l'identifiant du projet, le nom d'utilisateur Nimbus à inviter et la classe à partager, puis attendez la réponse.
+2. Vérifiez le compte avec `nimbus users search` ; en cas de `accès refusé` ou de compte absent, demandez le nom exact ou une première connexion.
+3. Demandez l'accord explicite avant chaque écriture, puis ajoutez avec `services members set` et partagez avec `services classes set`.
+4. Avant tout retrait, demandez l'accord et vérifiez qu'il restera un propriétaire, puis constatez avec `members list`.
+5. Ne touchez jamais aux droits GitLab depuis Nimbus.
+
+## Voir aussi
+
+- [Membres et politique d'accès](/plateforme/membres-et-politique)
+- [Rôles et permissions](/plateforme/roles)
+- [Gérer les classes](/plateforme/classes)

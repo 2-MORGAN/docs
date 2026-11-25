@@ -1,0 +1,107 @@
+---
+title: "Lire vos notifications et retrouver le projet concerné"
+description: "Ouvrez la cloche Notifications, lisez vos alertes de crédits, puis retrouvez le projet."
+keywords: ["notifications", "cloche", "alertes crédits", "tout marquer comme lu", "voir le projet"]
+---
+
+## En bref
+
+La cloche **Notifications** vous prévient quand un seuil ou une limite de crédits est atteint, et chaque alerte liée à un projet vous renvoie vers le projet concerné.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Cloche **Notifications** dans l'en-tête global | `nimbus notifications list` ; `nimbus notifications read <ID>` ; `nimbus notifications read-all` | Tout utilisateur connecté, pour ses propres notifications | Immédiat, liste réactualisée toutes les 60 secondes | Oui, marquer comme lu ne supprime rien |
+
+Dans les exemples, `<ID>` désigne l'identifiant de la notification renvoyé par `list`. Ces commandes ne prennent pas `--cluster-id` : vos notifications ne dépendent d'aucune cible.
+
+<Note>Le sens des alertes vit ailleurs : les seuils et les règles de crédits sont dans [Suivre vos crédits](/plateforme/credits). Le budget mensuel n'envoie pas de notification dans la cloche : il reste une alerte visuelle dans [Fixer un budget d'application](/plateforme/cout-et-budget). Cette page explique seulement comment lire vos notifications.</Note>
+
+## Avant de commencer
+
+- Connectez-vous à l'interface : la cloche n'apparaît que si vous êtes authentifié.
+- Repérez l'en-tête global : la cloche **Notifications** s'y trouve sur toutes les pages.
+- Si vous attendez une alerte précise, notez le nom du projet concerné pour le retrouver plus vite.
+- Il n'y a rien à activer ni à autoriser pour la cloche, ni dans Nimbus ni dans le navigateur.
+- Pour la CLI, vous êtes connecté (`nimbus auth login`). Ajoutez `--json` pour un résultat lisible par script.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la cloche">
+Cliquez sur **Notifications** dans l'en-tête global. Le bouton annonce `Notifications` quand vous n'avez rien à lire, ou `Notifications, … non lues` avec le nombre d'alertes non lues. La pastille affiche ce nombre, plafonnée à `99+` au-delà de 99. La liste se réactualise toute seule toutes les 60 secondes.
+</Step>
+<Step title="Lisez l'alerte">
+Chaque notification décrit l'événement : seuil ou limite de crédits, ou dépense exceptionnelle. Si le panneau affiche `Aucune notification.`, vous n'avez rien à traiter.
+</Step>
+<Step title="Retrouvez le projet">
+Quand la notification concerne un projet, cliquez sur **Voir le projet** sous la notification. La page du projet s'ouvre sur l'onglet **Ressources et coûts** (`Coûts et usage Cloudflare` pour un projet Cloudflare), à l'adresse `/dashboard/services/:id/resources`, où vous voyez le panneau concerné. Les alertes liées à vos propres crédits n'ont pas ce lien.
+</Step>
+<Step title="Marquez comme lu">
+Quand vous avez traité vos alertes, cliquez sur **Tout marquer comme lu** en haut du panneau. Ce bouton n'apparaît que si vous avez des alertes non lues. La pastille disparaît et le bouton annonce de nouveau `Notifications`.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+Listez vos notifications, les plus récentes d'abord, avec le nombre de non lues.
+
+```bash
+nimbus notifications list --unread --limit 20 --json
+```
+
+Sans `--unread`, vous lisez aussi les notifications déjà lues. La liste renvoie 50 notifications par défaut et 200 au plus. Marquez une notification comme lue avec son identifiant. Ici `42` désigne l'identifiant renvoyé par `list`.
+
+```bash
+nimbus notifications read 42
+```
+
+Marquez toutes vos notifications comme lues.
+
+```bash
+nimbus notifications read-all
+```
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La cloche affiche la pastille avec le bon nombre d'alertes non lues, `99+` au-delà de 99.
+- Le panneau **Notifications** liste vos alertes les plus récentes, ou affiche `Aucune notification.` si vous n'en avez pas.
+- Chaque lien **Voir le projet** ouvre `/dashboard/services/:id/resources` sur l'onglet **Ressources et coûts**.
+- Après **Tout marquer comme lu**, la pastille disparaît et le bouton annonce `Notifications`.
+- En CLI, `nimbus notifications list --json` renvoie `unread: 0` quand tout est lu et chaque lien **Voir le projet** correspond à un `projectId` de la réponse.
+
+## Limites
+
+- L'API renvoie 50 notifications par défaut (l'interface demande les 30 plus récentes) et plafonne la réponse à 200 : une valeur supérieure est ramenée à 200 sans erreur. Elle répond `400 "paramètre limit invalide"` si la valeur n'est pas un nombre entier supérieur ou égal à 1.
+- Vous ne voyez que vos propres notifications : l'accès exige votre jeton de session (JWT).
+- La liste se réactualise toutes les 60 secondes : entre deux actualisations, une alerte très récente peut manquer.
+- Si le service est désactivé côté plateforme, le panneau affiche `Notifications indisponibles.`, soit `503 "notifications indisponibles"` côté API.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Notifications indisponibles.` | Service désactivé ou panne de lecture | Attendez la prochaine actualisation, puis prévenez l'équipe Nimbus si cela dure |
+| `Aucune notification.` persistant alors qu'une alerte est attendue | Délai d'actualisation de 60 secondes, ou alerte adressée à un autre utilisateur | Attendez 60 secondes puis rouvrez la cloche ; vérifiez qui est concerné |
+| `400 "paramètre limit invalide"` | Paramètre `--limit` invalide : ce n'est pas un nombre entier supérieur ou égal à 1 | Demandez un nombre entier supérieur ou égal à 1 ; au-delà de 200, la réponse est plafonnée à 200 |
+| `404` sur `notifications read <ID>` | La notification appartient à un autre utilisateur | Vérifiez l'identifiant avec `nimbus notifications list --json` |
+| `503 "notifications indisponibles"` | Service désactivé côté plateforme | Prévenez l'équipe Nimbus |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur ce qu'annonce la cloche : `Notifications` ou `Notifications, … non lues`, plus le texte exact de l'alerte.
+2. Listez les alertes avec `nimbus notifications list --unread --json` et rapportez les titres, les messages et les identifiants.
+3. Guidez vers **Voir le projet**, onglet **Ressources et coûts**, puis vers les pages de crédits ou de budget pour interpréter l'alerte.
+4. Constatez le résultat avec `nimbus notifications list --json` (`unread: 0` après `read-all`) ou en demandant le texte affiché après **Voir le projet**.
+
+## Voir aussi
+
+- [Suivre vos crédits](/plateforme/credits)
+- [Fixer un budget d'application](/plateforme/cout-et-budget)
+- [Gérer les crédits en admin](/administration/credits)

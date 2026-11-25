@@ -1,0 +1,146 @@
+---
+title: "Connecter votre application avec le compte de l'école"
+description: "Activez la connexion de votre application avec le compte de l'école, créez des rôles et attribuez-les aux utilisateurs."
+keywords: ["identité application", "connexion OIDC", "compte de l'école", "client public confidentiel", "rôles application", "régénérer secret OIDC"]
+---
+
+## En bref
+
+Vous laissez vos utilisateurs se connecter avec leur compte de l'école, puis vous leur donnez des rôles propres à l'application.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Configuration** > **Identité** | `nimbus services identity set`, `nimbus services identity roles grant` | Voir : tout rôle du projet. Activer : propriétaire ou administrateur. Rôles et secret : membre, propriétaire ou administrateur | Au redémarrage après activation ou régénération | Oui, sauf désactivation (client et rôles effacés) et régénération (ancien secret invalidé) |
+
+## Avant de commencer
+
+- Votre application web tourne sur une cible Kubernetes avec la gateway HTTPS active (badge **Gateway active** dans l'onglet **Réseau**). Les workers et la cible edge sont exclus.
+- Vous connaissez l'identifiant de votre service, et chaque futur titulaire s'est déjà connecté une fois à Nimbus.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez l'onglet Identité">
+Cliquez sur **Configuration**, puis sur **Identité**. Le panneau **Connexion OIDC** affiche le badge **Active** ou **Inactive**.
+</Step>
+<Step title="Activez et notez les valeurs">
+Si le badge affiche **Inactive**, cochez **Application sans backend (client public)** seulement sans backend, puis cliquez sur **Activer l'identité**. Notez le **Type de client**, l'**Identifiant du client**, l'**URI de redirection** et les **Variables injectées**, puis suivez le **Guide d’intégration OIDC**.
+</Step>
+<Step title="Créez un rôle">
+Dans la carte **Rôles de l'application**, cliquez sur **Créer un rôle**. Saisissez le **Nom du rôle** et la **Description (facultative)**. Cliquez sur **Créer**.
+</Step>
+<Step title="Attribuez le rôle">
+Sur la ligne du rôle, cliquez sur **Attribuer**. Saisissez au moins deux caractères dans **Nom ou adresse e-mail** et cliquez sur **Rechercher**. Cliquez sur **Attribuer** en face de la bonne personne.
+</Step>
+<Step title="Régénérez ou désactivez">
+Pour un client **Confidentiel**, cliquez sur **Régénérer le secret**, puis sur **Régénérer** dans le dialogue **Régénérer le secret ?**. Pour tout couper, cliquez sur **Désactiver l’identité**, puis sur **Désactiver** dans le dialogue **Désactiver l’identité ?**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Affichez l'état actuel">
+```sh
+nimbus services identity get 123
+```
+`123` est l'identifiant de votre service ; la commande affiche l'état, le type de client et l'adresse publique.
+</Step>
+<Step title="Activez l'identité">
+```sh
+nimbus services identity set 123
+```
+La commande crée le client, injecte les variables `OIDC_*` et redémarre l'application. Pour une application sans backend :
+```sh
+nimbus services identity set 123 --public
+```
+</Step>
+<Step title="Créez un rôle et contrôlez">
+```sh
+nimbus services identity roles create 123 --name editeur --description "Peut modifier"
+```
+Puis contrôlez :
+```sh
+nimbus services identity roles list 123
+```
+</Step>
+<Step title="Renommez un rôle">
+```sh
+nimbus services identity roles set 123 editeur --name redacteur --description "Peut publier"
+```
+Attention : sans `--description`, la description existante est effacée.
+</Step>
+<Step title="Attribuez un rôle, puis retirez-le si besoin">
+```sh
+nimbus services identity search-users 123 --query martin
+```
+La recherche demande deux caractères au moins et renvoie l'identifiant du compte dans le champ `sub`. Attribuez ensuite le rôle :
+```sh
+nimbus services identity roles grant 123 editeur <SUB>
+```
+`<SUB>` est l'identifiant copié depuis le champ `sub`. Pour retirer le rôle sans supprimer le compte :
+```sh
+nimbus services identity roles revoke 123 editeur <SUB> --yes
+```
+</Step>
+<Step title="Régénérez le secret ou désactivez">
+```sh
+nimbus services identity rotate-secret 123 --yes
+```
+L'ancien secret cesse aussitôt de fonctionner et l'application redémarre. Pour supprimer un rôle :
+```sh
+nimbus services identity roles delete 123 editeur --yes
+```
+Pour tout désactiver d'un coup :
+```sh
+nimbus services identity delete 123 --yes
+```
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau **Connexion OIDC** affiche le badge **Active** et votre application redirige vers le compte de l'école.
+- La carte **Rôles de l'application** liste vos rôles avec leurs titulaires.
+
+## Limites
+
+- L'identité exige une gateway HTTPS active : sans HTTPS, Keycloak refuse de rediriger vers votre application.
+- Nimbus injecte `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` et `OIDC_REDIRECT_BASE_URL`, sauf `OIDC_CLIENT_SECRET` pour un client **Public** sans backend. Un client **Confidentiel** convient avec backend : gardez `OIDC_CLIENT_SECRET` secret.
+- Une application accepte au plus 20 rôles. Un nom de rôle commence par une minuscule, puis utilise minuscules, chiffres, tirets ou underscores, avec 32 caractères au plus. La description compte 255 caractères au plus, et la recherche affiche au plus 20 résultats.
+- La désactivation efface le client et les rôles, et la régénération invalide l'ancien secret : les deux sont définitifs.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « activez d'abord HTTPS avec la gateway du service : Keycloak ne redirige que vers une adresse https » | Gateway HTTPS inactive | Activez la gateway puis réessayez |
+| « ce service n'a pas d'URL publique : l'identité est réservée aux applications web » | Worker ou service sans URL | Utilisez une application web |
+| « un client public n'a pas de secret » | Client **Public** | Recréez l'identité sans `--public` |
+| « nom de rôle invalide : une minuscule, puis minuscules, chiffres, - ou _ (32 caractères au plus) » | Nom mal formé | Corrigez le format du nom |
+| « description trop longue (255 caractères au plus) » | Plus de 255 caractères | Raccourcissez la description |
+| « une application a au plus 20 rôles » | Limite de 20 rôles atteinte | Supprimez un rôle inutile |
+| « un rôle porte déjà ce nom » | Nom déjà pris | Choisissez un autre nom |
+| « saisissez au moins deux caractères » | Recherche trop courte | Allongez la recherche |
+| « compte inconnu de Nimbus : la personne doit s'être connectée une fois à Nimbus » | Personne jamais connectée à Nimbus | Demandez-lui une connexion puis cherchez de nouveau |
+| « l'identité n'est pas activée pour ce service » | Identité inactive | Activez l'identité puis réessayez |
+| « secret régénéré mais non transmis à l'application : relancez la régénération » | Écriture Kubernetes échouée | Relancez la régénération |
+
+## Pour un agent
+
+1. Demandez l'identifiant du service et le type de backend avant d'agir.
+2. Contrôlez la gateway HTTPS d'abord, et demandez l'accord avant `set`, `delete`, `rotate-secret`, `roles delete` et `roles revoke` (redémarrage ou perte de données).
+3. Constatez avec `nimbus services identity get 123` et `nimbus services identity roles list 123`. Ne cherchez jamais à afficher `OIDC_CLIENT_SECRET`.
+
+## Voir aussi
+
+- [Exposer votre application en HTTPS](/plateforme/url-et-passerelle)
+- [Isoler votre application des voisines](/plateforme/isolation)
+- [Gérer les variables et secrets](/plateforme/variables)

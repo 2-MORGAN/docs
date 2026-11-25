@@ -1,0 +1,126 @@
+---
+title: "Piloter la plateforme : AKS, santé et copie GitLab"
+description: "Depuis la page Administration, démarrez ou arrêtez le cluster AKS, vérifiez la santé et relancez la copie GitLab."
+keywords: ["administration", "AKS", "démarrer AKS", "arrêter AKS", "santé plateforme", "copie GitLab"]
+---
+
+## En bref
+
+Vous pilotez le cluster partagé, vous contrôlez la santé et vous relancez la copie des cours dans GitLab.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Menu **Administration**, page `/dashboard/admin` | `nimbus clusters power get aks --json` | Rôle plateforme `admin` | Démarrage ou arrêt en 5 à 10 minutes, copie en quelques secondes | Oui, l'action inverse annule la précédente |
+
+## Avant de commencer
+
+- Vous disposez du rôle plateforme `admin`. Vous le vérifiez quand le menu **Administration** apparaît dans la navigation.
+- Sans ce rôle, la page affiche **Espace réservé à l'administration** avec le message « Votre compte ne dispose pas des droits nécessaires. » et le bouton **Revenir à mon espace** vous ramène à votre espace.
+- Seul le cluster `aks` se pilote depuis Nimbus. Les autres cibles ne se démarrent ni ne s'arrêtent ici.
+- Pour la CLI, vous êtes connecté : `nimbus auth login` répond sans erreur.
+
+<Note>La page empile plusieurs panneaux indépendants. Outre ceux décrits ici, vous croisez **Santé de la plateforme** et **Groupes d'accès aux projets**, cités ici sans détail.</Note>
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la page d'administration">
+Dans le menu, cliquez sur **Administration**. La page `/dashboard/admin` affiche ses panneaux empilés, dont **Cluster AKS** et **Copie dans GitLab**.
+</Step>
+<Step title="Lisez l'état du cluster AKS">
+Le panneau **Cluster AKS** décrit le pilotage de l'hébergement des applications AKS. Cliquez sur **Actualiser** pour relire l'état. La date de dernière vérification s'affiche sous le titre.
+</Step>
+<Step title="Démarrez ou arrêtez le cluster">
+Cliquez sur **Démarrer AKS** ou **Arrêter AKS**. Le dialogue **Démarrer le cluster AKS ?** (ou **Arrêter le cluster AKS ?**) rappelle le délai et les conséquences. Cliquez sur **Confirmer le démarrage** (ou **Confirmer l'arrêt**). La notice **Démarrage demandé. Le cluster n'est pas encore disponible.** (ou **Arrêt demandé.**) confirme l'envoi. Si l'état est déjà atteint, la notice dit que le cluster est déjà dans l'état demandé.
+</Step>
+<Step title="Relancez la copie dans GitLab">
+Le panneau **Copie dans GitLab** porte le badge courant : **À jour**, **En attente**, **Échec**, **Désactivée** ou `<N>` **à corriger**, où `<N>` est le nombre de groupes en erreur. Cliquez sur **Synchroniser maintenant** (grisé si la copie est désactivée). Le message **Synchronisation demandée. L'état sera actualisé dans quelques secondes.** annonce que l'état se met à jour dans les secondes qui suivent.
+</Step>
+</Steps>
+
+<Warning>Arrêter AKS rend indisponibles toutes les applications hébergées sur AKS jusqu'au redémarrage. Les projets K3s et Cloudflare ne sont pas concernés.</Warning>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Lisez l'état du cluster">
+```sh
+nimbus clusters power get aks --json
+```
+Elle renvoie `cluster`, `enabled`, `state` et `reason`. `state` vaut `running`, `stopped`, `starting`, `stopping`, `updating` ou `unknown`.
+</Step>
+<Step title="Démarrez ou arrêtez le cluster">
+```sh
+nimbus clusters power set aks --action start --yes --json
+```
+Remplacez `start` par `stop` pour arrêter. La commande est destructive et exige `--yes`. Elle renvoie `202` quand l'ordre part, `200` si le cluster est déjà dans l'état demandé.
+</Step>
+<Step title="Vérifiez la santé de la plateforme">
+```sh
+nimbus platform health --json
+```
+Elle renvoie l'état des composants de la plateforme. Pour un contrôle plus rapide :
+```sh
+nimbus platform ping --json
+```
+Elle répond quand l'API est joignable.
+</Step>
+<Step title="Lisez et relancez la copie GitLab">
+```sh
+nimbus admin gitlab-tree get --json
+```
+Elle renvoie l'état de la copie. Pour la relancer :
+```sh
+nimbus admin gitlab-tree sync --json
+```
+Elle renvoie `202` quand la synchronisation part, `409` si la copie est désactivée.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau **Cluster AKS** propose le bouton opposé à l'état courant (**Arrêter AKS** quand le cluster tourne).
+- `power get` renvoie le même `state` que l'interface après **Actualiser**.
+- Le panneau **Copie dans GitLab** affiche **À jour** après une synchronisation réussie.
+- `platform ping` répond sans erreur quand la plateforme est joignable.
+
+## Limites
+
+- Seul `aks` se pilote : tout autre identifiant répond `404`.
+- Le démarrage prend généralement 5 à 10 minutes. Nimbus n'arrête jamais le cluster automatiquement.
+- Aucun déploiement en attente ne repart seul après un redémarrage : relancez-le vous-même.
+- Le pilotage exige des identifiants configurés côté exploitation. Sans eux, la lecture annonce un pilotage non configuré et l'ordre répond `503`.
+- `power set` est la seule commande destructive de ce périmètre et exige `--yes`.
+- `gitlab-tree sync` donne seulement l'ordre : la copie s'exécute ensuite en arrière-plan.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `401 unauthorized` ou « Votre session a expiré. Reconnectez-vous. » | Session absente ou expirée | Reconnectez-vous, puis réessayez |
+| `403` : « réservé aux administrateurs » en CLI, « Votre compte n'est pas autorisé à piloter AKS. » dans l'interface | Rôle `admin` manquant | Demandez le rôle à un administrateur |
+| `404` : « seul le cluster AKS peut être démarré ou arrêté depuis Nimbus » | Seul `aks` se pilote | Relancez avec `aks` |
+| `409` : « une opération est déjà en cours sur le cluster ; réessayez quand elle sera terminée » en CLI, « Une opération est déjà en cours. Actualisation de l'état du cluster. » dans l'interface | Transition déjà lancée | Actualisez l'état et attendez la fin |
+| `503` : « pilotage du cluster non configuré » en CLI, « Le pilotage AKS n'est pas configuré. » dans l'interface | Pilotage non configuré | Prévenez l'équipe Nimbus |
+| `409` sur `gitlab-tree sync`, badge **Désactivée** | Copie GitLab désactivée | Prévenez l'équipe Nimbus, n'insistez pas |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur s'il veut démarrer ou arrêter `aks`, ou relancer la copie GitLab. Attendez ici la réponse.
+2. Constatez l'état avec `nimbus clusters power get aks --json` avant toute action. Si l'utilisateur veut seulement déployer une application classique, proposez la cible `k3s-oracle`, toujours allumée, plutôt que de démarrer `aks`.
+3. `power set` est destructif : demandez l'accord explicite avant de l'envoyer, et rappelez le délai de 5 à 10 minutes sans arrêt automatique.
+4. Constatez le résultat avec `power get` jusqu'à `running` ou `stopped`, et avec `gitlab-tree get` jusqu'au badge attendu.
+5. En cas de `403`, ne contournez jamais : vérifiez le rôle avec l'utilisateur.
+
+## Voir aussi
+
+- [Choisir une cible](/plateforme/cibles)
+- [Comprendre les états](/plateforme/etats)
+- [Commandes CLI](/cli/commandes)

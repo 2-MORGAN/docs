@@ -1,0 +1,119 @@
+---
+title: "Suivre le coût estimé et fixer un budget mensuel"
+description: "Consultez le coût estimé de votre application et fixez un budget mensuel avec seuil d'alerte."
+keywords: ["coût estimé", "budget mensuel", "seuil d'alerte", "services cost", "services budget"]
+---
+
+## En bref
+
+Vous lisez ce que votre application coûte et vous êtes prévenu avant de dépasser votre budget : un badge dans le panneau, et un message Discord si les alertes Discord de l'application sont configurées.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service, onglet **Ressources et coûts**, panneaux **Coût estimé** et **Budget mensuel** | `nimbus services cost`, `nimbus services budget get`, `nimbus services budget set`, `nimbus services budget delete` | Lecture : tout membre du projet ; fixer ou supprimer le budget : droit de configuration | Immédiat pour l'affichage ; le message Discord part au passage suivant | Oui : le budget se modifie et se recrée après suppression ; le coût est une lecture seule |
+
+## Avant de commencer
+
+- Vous êtes membre du projet de l'application. Pour modifier le budget, vous avez le droit de configuration sur le projet.
+- Vous connaissez l'identifiant de l'application : listez vos applications avec `nimbus services list --json` pour le retrouver. Dans les exemples ci-dessous, `123` désigne cet identifiant : remplacez-le par le vôtre.
+- Votre CLI est connectée : `nimbus auth whoami` répond sans erreur.
+- Une tarification est configurée pour la cible de déploiement. Sans tarif, le calcul est indisponible et l'interface comme la CLI l'indiquent.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez l'onglet Ressources et coûts">
+Ouvrez la page de votre application, puis cliquez sur l'onglet **Ressources et coûts**. Les panneaux **Budget mensuel** puis **Coût estimé** s'affichent, chacun avec le badge **Estimation**.
+</Step>
+<Step title="Lisez le coût estimé">
+Le panneau **Coût estimé** affiche le total et la période. Choisissez une période avec le sélecteur **Mois en cours**, **Mois précédent** ou **30 derniers jours**. Cliquez sur le bouton **Actualiser le coût estimé** (l'icône en haut du panneau) pour relancer le calcul : le message **Calcul du coût estimé…** s'affiche pendant le chargement. Le détail montre les lignes **Calcul** (**CPU et mémoire**) et **Stockage** (**PostgreSQL**), ou **Aucun volume** si l'application n'a pas de stockage.
+</Step>
+<Step title="Fixez un budget">
+Dans le panneau **Budget mensuel**, cliquez sur **Définir un budget** (ou **Modifier le budget**). Saisissez le champ **Budget mensuel** (avec la devise entre parenthèses si un budget existe déjà) et le **Seuil d’avertissement (%)**. Cliquez sur **Enregistrer** : le panneau affiche l'état (**Sous le seuil**, **Seuil atteint**, **Budget atteint ou dépassé**, **Estimation indisponible** ou **Non défini**) et la mention **Dans la devise de la tarification de l’application.** Après une journée de mesure, le panneau ajoute une projection en fin de mois (**Au rythme actuel : …**).
+</Step>
+<Step title="Supprimez le budget si besoin">
+Cliquez sur **Supprimer**, puis confirmez dans le dialogue **Supprimer le budget mensuel ?** en cliquant sur **Supprimer le budget**. Le suivi du budget est désactivé et le panneau repasse à **Non défini**. Vous pouvez cliquer sur **Annuler** à tout moment pour garder le budget actuel.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Consultez le coût">
+```sh
+nimbus services cost 123 --from 2026-11-01 --to 2026-11-24 --json
+```
+`123` est l'identifiant de l'application, `--from` et `--to` bornent la période au format `AAAA-MM-JJ` (sans ces flags, la commande couvre du 1er du mois à maintenant). Elle renvoie le total, la devise et le détail par poste.
+</Step>
+<Step title="Consultez le budget">
+```sh
+nimbus services budget get 123 --json
+```
+Elle renvoie le budget configuré et son état (`none`, `ok`, `warning`, `exceeded` ou `unknown`). Sans budget, elle renvoie `configured` à faux et l'état `none`.
+</Step>
+<Step title="Fixez le budget">
+```sh
+nimbus services budget set 123 --monthly-amount 50 --warning-percent 80 --json
+```
+`--monthly-amount` est obligatoire : c'est le montant mensuel en devise de la tarification. `--warning-percent` est optionnel (entier de 1 à 99, 80 par défaut). Elle renvoie le budget réévalué.
+</Step>
+<Step title="Supprimez le budget">
+```sh
+nimbus services budget delete 123 --yes
+```
+`--yes` confirme la suppression, car l'opération est destructive. La lecture repasse ensuite à l'état `none`.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau **Coût estimé** affiche un total et les lignes **Calcul** et **Stockage**, ou le message **L’estimation du coût n’est pas encore disponible pour cette application.** si aucun tarif n'est configuré.
+- Le panneau **Budget mensuel** affiche le badge d'état et le texte **Mois en cours · Seuil d’avertissement à 80 %** (avec votre seuil).
+- Si le coût du mois est illisible, l'état passe à **Estimation indisponible** avec la raison affichée, et le budget reste modifiable.
+- Après une journée de mesure, le panneau affiche une projection en fin de mois (**Au rythme actuel : …**) avec l'état prévu.
+- En CLI, `nimbus services budget get 123 --json` renvoie le même état et les mêmes montants que l'interface.
+
+## Limites
+
+- La période du coût est limitée à 62 jours maximum, du début `--from` à la fin `--to`.
+- Le montant du budget est strictement positif et plafonné : de 0,01 à 100 000, dans la devise de la tarification de l'application.
+- Le seuil d'avertissement est un entier de 1 à 99 %, avec 80 % par défaut.
+- Le budget ne bloque rien : le badge change aussitôt, et Nimbus envoie un message Discord quand le seuil puis le budget sont atteints, à condition qu'un webhook Discord actif soit enregistré pour l'application (Nimbus réévalue les budgets toutes les 15 minutes environ). Sans webhook, l'alerte reste visuelle : pour recevoir un message, configurez les [alertes Discord](/plateforme/alertes-discord).
+- La suppression prend effet aussitôt, mais vous pouvez fixer un nouveau budget à tout moment.
+- Sur une cible edge (serverless), le coût affiché est nul avec un bloc de mesures dédié, et l'onglet s'appelle **Coûts et usage Cloudflare**.
+- La page de référence des crédits explique l'unité de décompte interne : [Gérer vos crédits](/plateforme/credits).
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `L’estimation du coût n’est pas encore disponible pour cette application.` | Aucun tarif disponible (erreur 503) | Cliquez sur **Réessayer** ou **Actualiser le coût estimé** ; si le message persiste, demandez à l'équipe Nimbus si une tarification existe pour votre cible |
+| `calcul du coût indisponible : Datadog n'est pas configuré` | Chiffrage indisponible côté plateforme (503 en CLI pour `cost` ; état `unknown` avec cette raison pour `budget get`) | Si ce message s'affiche, contactez l'équipe Nimbus |
+| `aucun tarif configuré pour le cluster <CLUSTER>` | Aucun tarif pour cette cible (503, aussi au moment de fixer un budget) ; `<CLUSTER>` est l'identifiant de la cible de déploiement | Déployez sur une cible tarifée ou contactez l'équipe Nimbus |
+| `le budget est en <DEVISE> mais la tarification est désormais en <DEVISE> : redéfinissez le budget` | La tarification a changé depuis la création du budget (état `unknown`) ; chaque `<DEVISE>` est un code de devise | Fixez un nouveau budget avec `budget set` |
+| `période trop longue : 62 jours au maximum` | Période `--from` et `--to` trop longue (400) | Raccourcissez la période à 62 jours au plus |
+| `Vérifiez le montant (0,01 à 100 000) et le seuil (1 à 99 %).` | Montant ou seuil hors bornes dans le formulaire (422) | Corrigez le montant (0,01 à 100 000) et le seuil (entier de 1 à 99) |
+| `budget invalide : …` | Montant ou seuil hors bornes en CLI (422) ; le message précise la borne, par exemple `le montant mensuel doit être d'au moins 0,01` | Corrigez le montant (0,01 à 100 000) et le seuil (entier de 1 à 99) |
+| `La tarification est indisponible. Réessayez plus tard.` | Tarif momentanément illisible (503 dans le panneau budget) | Réessayez plus tard |
+| Erreur 403 à la fixation ou à la suppression | Droit de configuration manquant | Demandez à un propriétaire du projet le droit de configuration |
+
+## Pour un agent
+
+1. Demandez l'identifiant de l'application (`123` dans les exemples), puis le montant et le seuil si l'utilisateur veut un budget. Attendez la réponse avant d'écrire.
+2. Lisez d'abord avec `nimbus services cost 123 --json` et `nimbus services budget get 123 --json` : ne fixez un budget qu'après avoir montré l'état actuel.
+3. Demandez l'accord explicite avant `nimbus services budget delete 123 --yes` : la suppression prend effet aussitôt.
+4. Constatez le résultat avec `budget get` et rapportez l'état (`ok`, `warning`, `exceeded`) avec les montants.
+5. Rappelez que le budget ne bloque rien, mais qu'il envoie un message Discord si un webhook est configuré : pour un plafond réel, renvoyez vers [Gérer vos crédits](/plateforme/credits).
+
+## Voir aussi
+
+- [Gérer vos crédits](/plateforme/credits)
+- [Recevoir les notifications](/plateforme/notifications)
+- [Recevoir les alertes Discord](/plateforme/alertes-discord)

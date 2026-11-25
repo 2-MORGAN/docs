@@ -1,0 +1,136 @@
+---
+title: "Faire générer les fichiers de déploiement par l'IA"
+description: "Votre framework n'est pas reconnu par Nimbus ? Faites analyser votre dépôt par l'IA, examinez la proposition fichier par fichier, approuvez-la puis déployez."
+keywords: ["génération IA", "proposition IA", "framework non pris en charge", "Dockerfile généré", "generated"]
+---
+
+## En bref
+
+Si Nimbus ne reconnaît pas votre framework, l'IA rédige le `Dockerfile`, l'image de build et les commandes CI. Vous examinez chaque fichier, vous approuvez, puis Nimbus déploie.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Nouveau projet** > **Générer avec l'IA** > **Proposition IA** | `nimbus services generation preview`, `approve`, `configure` | Utilisateur connecté, autorisé à configurer le projet | Proposition valable 20 minutes | Oui avant le déploiement |
+
+## Avant de commencer
+
+- Retrouvez l'identifiant de votre dépôt (par exemple `123`) avec `nimbus gitlab repositories --json`.
+- Il utilise un framework que Nimbus ne reconnaît pas, sinon la génération est refusée (erreur 422).
+- La génération est activée : `nimbus services generation capabilities` répond `"enabled": true`.
+- Vous avez choisi une cible : listez-les avec `nimbus targets list --json` (`k3s-oracle` convient par défaut).
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Demandez l'analyse du dépôt">
+Sur la page de création, le message « Ce framework n'est pas pris en charge par Nimbus. Vous pouvez faire générer les fichiers de déploiement. » s'affiche. Cliquez sur **Générer avec l'IA**. Le dialogue **Analyser le dépôt avec l'IA ?** s'affiche : Nimbus enverra des éléments de votre dépôt à un fournisseur IA externe. Cliquez sur **Analyser le dépôt** pour lancer l'analyse. **Annuler** refuse et ne change rien.
+</Step>
+<Step title="Examinez la proposition fichier par fichier">
+Le panneau **Proposition IA** affiche un badge (**À examiner**, **Prête à approuver**, **Approuvée**, **Expirée**). Ouvrez les onglets **Dockerfile**, **Image de build** et **Commandes CI**, cliquez sur **J'ai examiné ce fichier** dans chacun, puis cochez la case « J'ai examiné le Dockerfile, les commandes exécutables générées et leurs permissions dans la CI. »
+</Step>
+<Step title="Approuvez puis déployez">
+Quand le badge affiche **Prête à approuver**, passez à l'étape **Préparer le projet**. Cochez **Déployer ce dépôt maintenant**, sinon le bouton final crée seulement le projet sans le déployer. Choisissez votre **Cible de déploiement**. Cliquez sur **Déployer l'application**. La mention « Fichiers réutilisés, sans nouvel appel IA. » signale une proposition réutilisée sans nouvel appel. Si la proposition a expiré, cliquez sur **Renouveler** pour relancer l'analyse. Tant qu'elle reste valable, **Régénérer** force une nouvelle analyse au lieu d'utiliser le cache. Confirmez dans **Régénérer la proposition ?**. En cas d'échec, **Réessayer** relance l'analyse. Dans ce cas, **Choisir un modèle** abandonne la proposition et revient au choix du framework.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Vérifiez que la génération est disponible">
+```sh
+nimbus services generation capabilities
+```
+Elle répond `enabled`, `per_user_per_hour`, `concurrent`, `review_ttl_seconds` (`1200`, soit 20 minutes) et `private_recipes`. Si `enabled` vaut `false`, l'analyse est impossible.
+</Step>
+<Step title="Demandez la proposition">
+```sh
+nimbus services generation preview --repository-id 123 --output ./preview.json
+```
+`123` est l'identifiant GitLab du dépôt. Elle écrit `./preview.json` avec `proposal`, `review_token`, `source_revision`, `expires_at` et `cached`. Stockez le jeton d'examen dans une variable, sans jamais l'afficher :
+```sh
+REVIEW_TOKEN="$(jq -r .review_token ./preview.json)"
+```
+La proposition reste valable 20 minutes. Lisez-la avec `jq .proposal ./preview.json`. `--regenerate` force une nouvelle analyse et `--template-id <ID_MODELE>` réutilise un de vos modèles (`<ID_MODELE>` : voir la page des modèles), mais ces deux options sont mutuellement exclusives.
+</Step>
+<Step title="Approuvez le plan de déploiement">
+Créez `plan.json` avec le contenu exact suivant. La clé `plan` est obligatoire : la requête d'approbation l'exige.
+```json
+{
+  "plan": {
+    "repository_id": 123,
+    "framework": "generated",
+    "cluster_id": "k3s-oracle"
+  }
+}
+```
+Si vous visez une autre cible (identifiant obtenu avec `nimbus targets list --json`), remplacez `k3s-oracle` ici et dans la commande `configure`. Puis lancez :
+```sh
+nimbus services generation approve --preview-token "$REVIEW_TOKEN" --approved --input ./plan.json --output ./approval.json
+```
+Elle écrit `./approval.json` avec `approval_token` et `expires_at`. Stockez le jeton d'approbation dans une variable, sans jamais l'afficher :
+```sh
+APPROVAL_TOKEN="$(jq -r .approval_token ./approval.json)"
+```
+</Step>
+<Step title="Déployez avec le jeton d'approbation">
+```sh
+nimbus services configure --repository-id 123 --framework generated --cluster-id k3s-oracle --generated-review-token "$APPROVAL_TOKEN"
+```
+Les valeurs restent identiques à celles de `plan.json`. Le plan déployé doit rester identique au plan approuvé, sans commit entre-temps.
+</Step>
+</Steps>
+
+<Warning>Le consentement (**Analyser le dépôt avec l'IA ?**) et l'examen fichier par fichier n'existent qu'en interface. En CLI, n'analysez jamais le dépôt d'autrui sans son accord explicite, et relisez toujours la proposition avant de l'approuver.</Warning>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- `preview.json` contient `proposal`, `review_token`, `source_revision` et `expires_at`.
+- `approval.json` contient `approval_token` et `expires_at`.
+- En interface, le badge du panneau **Proposition IA** passe à **Approuvée**, puis le service démarre.
+- En CLI, `nimbus services status 123 --json` montre le service créé.
+
+<Note>Si `"cached"` vaut `true`, aucun nouvel appel IA n'a eu lieu.</Note>
+
+## Limites
+
+- La proposition expire après 20 minutes (`review_ttl_seconds` égal à `1200`). Relancez ensuite `preview`, ou cliquez sur **Renouveler**.
+- La révision Git du dépôt doit rester inchangée entre l'analyse, l'approbation et le déploiement.
+- Les quotas `per_user_per_hour` et `concurrent` limitent les analyses. Au delà, le serveur répond 429 avec un en-tête `Retry-After` qui indique l'attente en secondes.
+- `--regenerate` et `--template-id` sont mutuellement exclusifs, et un `--template-id` inconnu répond 404.
+- Le plan approuvé et le plan déployé doivent être strictement identiques, cible comprise.
+- L'analyse envoie des éléments de votre dépôt au fournisseur d'IA, et l'espace partagé des applications étudiantes n'est pas prévu pour des secrets sensibles.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| 422 « ce framework est pris en charge par Nimbus ; utilisez sa configuration native » | Dépôt déjà couvert par un framework officiel | Déployez sans génération IA |
+| 409 « les sources ont changé ; générer et examiner une nouvelle proposition » | Un commit est arrivé entre l'analyse et la suite | Relancez `preview`, puis enchaînez sans pousser de commit |
+| 412 « aperçu invalide ou expiré » | Proposition expirée (20 minutes dépassées) | Relancez `preview`, ou cliquez sur **Renouveler** |
+| 428 « générer et examiner la proposition avant le déploiement » | `configure` sans `generated_review_token` | Faites `preview` puis `approve` avant de déployer |
+| 400 « approbation explicite et plan requis » | `--approved` ou `--input` manquant | Ajoutez `--approved` et un `plan.json` complet |
+| 404 « recette générée personnelle introuvable » | `--template-id` inconnu ou appartenant à autrui | Vérifiez l'identifiant de votre modèle |
+| 429 avec en-tête `Retry-After` | Quota d'analyses dépassé | Attendez le délai indiqué |
+| 503 « génération IA du déploiement échouée, réessayez dans quelques instants » | Fournisseur d'IA indisponible | Attendez quelques instants, puis cliquez sur **Réessayer** ou relancez `preview` |
+
+## Pour un agent
+
+1. Obtenez l'identifiant du dépôt et la cible (`nimbus gitlab repositories --json`, `nimbus targets list --json`).
+2. Vérifiez `capabilities` (`enabled` à `true`) avant toute analyse.
+3. Obtenez l'accord explicite de l'utilisateur avant `preview` : en CLI, aucun écran ne couvre l'envoi du dépôt au fournisseur d'IA.
+4. Faites valider `plan.json` par l'utilisateur avant `approve`, sans commit entre les trois appels.
+5. Constatez avec `nimbus services status 123 --json`. N'affichez jamais les jetons dans les journaux ou le chat.
+
+## Voir aussi
+
+- [Générer avec l'IA, pas à pas](/parcours/generation-ia)
+- [Réutiliser vos modèles enregistrés](/plateforme/modeles)
+- [Comprendre les frameworks reconnus](/plateforme/frameworks)

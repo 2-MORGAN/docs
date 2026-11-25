@@ -1,0 +1,164 @@
+---
+title: "Préparer votre dépôt pour le déploiement"
+description: "Adaptez votre application au déploiement Nimbus : port d'écoute, fichiers détectés, variables d'environnement, migrations et branche cnp-deploy."
+keywords: ["préparer dépôt", "port écoute", "Dockerfile", "framework", "migrations", "cnp-deploy", "worker"]
+---
+
+## En bref
+
+Rendez votre code déployable : réglez le port, les variables et les migrations avant de configurer.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Projets** > **Nouveau projet** | `nimbus services configure`, `nimbus services migration preview` | Tout utilisateur connecté avec accès au dépôt | Au déploiement, après génération des fichiers | Oui, corrigez le code et redéployez |
+
+## Avant de commencer
+
+- Votre code est poussé sur la branche principale du dépôt (`mon-appli` dans les exemples).
+- Vous connaissez l'identifiant GitLab du dépôt (`<ID_DU_DEPOT>`, par exemple `123`). Obtenez-le avec `nimbus gitlab repositories --json`.
+- Vous connaissez le framework (`<FRAMEWORK>`, par exemple `go`) parmi `go`, `nextjs`, `springboot`, `nestjs`, `django`, `static` et `spa`.
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous avez choisi une cible (`<CIBLE>`, par exemple `k3s-oracle`). Listez-les avec `nimbus targets list --json`. Passez-la toujours explicitement, car le serveur retombe sur `aks` par défaut.
+
+## Faire
+
+Votre application est détectée à partir des fichiers présents à la racine du dépôt.
+
+| Framework | Fichier détecté | Port à écouter |
+| --- | --- | --- |
+| `go` | `go.mod` ou `go.work` | `8080` |
+| `nextjs` | `package.json` contenant `next`, ou `next.config.js` (`output: export` bascule vers `spa`) | `3000` |
+| `nestjs` | `package.json` contenant `@nestjs/core` | `3000` |
+| `springboot` | `pom.xml` ou `build.gradle` avec Spring Boot | `8080` |
+| `django` | `manage.py`, `requirements.txt` ou `pyproject.toml` avec Django | `8000` |
+| `spa` | `package.json` avec Vite et `index.html` à la racine | `80` |
+| `static` | Aucun marqueur reconnu (HTML, CSS et JS purs) | `80` |
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la création de projet">
+Cliquez sur **Projets**, puis sur **Nouveau projet**. L'étape **Dépôt** s'affiche. Choisissez votre dépôt dans la liste.
+</Step>
+<Step title="Vérifiez le framework détecté">
+À l'étape **Préparer le projet**, ouvrez **Framework**. Corrigez avec **Choisir un framework** si la valeur détectée est fausse.
+</Step>
+<Step title="Réglez le port d'écoute">
+Modifiez votre code pour qu'il écoute le port du tableau sur toutes les interfaces, avec l'adresse `0.0.0.0`. Poussez la correction sur votre branche principale.
+</Step>
+<Step title="Choisissez le mode d'exécution">
+Gardez **Application HTTP** si votre programme répond aux requêtes web. Cochez **Application sans HTTP (worker)** pour un programme sans serveur web, par exemple un robot. Un worker n'obtient aucune URL.
+</Step>
+<Step title="Ajoutez la base de données si besoin">
+Ouvrez l'étape **Base de données**. Cochez **Ajouter PostgreSQL** seulement si votre application en a besoin. Laissez **Gestion manuelle** sélectionné et renseignez `DATABASE_URL` dans votre code.
+</Step>
+<Step title="Examinez les fichiers générés">
+Cliquez sur **Voir les fichiers requis** pour comprendre ce que Nimbus va écrire. Pour un dépôt analysé par l'IA, ouvrez chaque onglet **Dockerfile**, **Image de build** et **Commandes CI**. Cliquez sur **J’ai examiné ce fichier** dans chaque onglet. Cochez ensuite **J’ai examiné le Dockerfile, les commandes exécutables générées et leurs permissions dans la CI.**
+</Step>
+<Step title="Lancez le déploiement">
+Choisissez votre cible dans **Cible de déploiement**. Cliquez sur **Déployer l'application**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Prévisualisez les migrations">
+```sh
+nimbus services migration preview 123 --framework go
+```
+Elle renvoie le framework, l'outil détecté et l'outil recommandé, les options de migration et les réglages de build (`build_defaults`) pour le dépôt `123`. Adaptez `<ID_DU_DEPOT>` et `<FRAMEWORK>` à votre cas.
+</Step>
+<Step title="Estimez la migration d'un service existant">
+```sh
+nimbus services migration options 123
+```
+Elle renvoie l'estimation pour le service `123`. Elle ne modifie rien.
+</Step>
+<Step title="Déployez un dépôt existant">
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle
+```
+Elle configure le dépôt `123` et lance le déploiement sur la cible `k3s-oracle`. Elle attend la fin du pipeline, jusqu'à dix minutes.
+</Step>
+<Step title="Déployez avec base et construction statique">
+Écrivez le fichier `configure.json` avec le contenu exact ci-dessous, adapté à un site `spa` avec base PostgreSQL en gestion manuelle :
+```json
+{
+  "repository_id": 123,
+  "framework": "spa",
+  "cluster_id": "k3s-oracle",
+  "postgres": {
+    "db_name": "app",
+    "migration": {
+      "mode": "manual"
+    }
+  },
+  "build": {
+    "install_command": "npm ci",
+    "build_command": "npm run build",
+    "output_dir": "dist"
+  }
+}
+```
+Lancez ensuite la commande :
+```sh
+nimbus services configure --input configure.json
+```
+Elle lit tout le plan dans `configure.json` et déploie le dépôt.
+</Step>
+<Step title="Déployez un worker sans HTTP">
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle --worker
+```
+Elle déploie le dépôt `123` sans Service ni Ingress sur la cible `k3s-oracle`, donc sans URL. Le drapeau `--worker` équivaut à la case **Application sans HTTP (worker)**.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Votre code écoute le bon port sur `0.0.0.0`, vérifié par un démarrage local.
+- La fiche du service affiche le framework attendu avec le badge **Détecté**.
+- La fiche affiche l'URL publique et le badge **En ligne** pour une application HTTP.
+- En CLI, `nimbus services status 123 --json` renvoie `{status, …}` pour le service `123`.
+- Les fichiers `Dockerfile`, `.gitlab-ci.yml` et `cnp.yaml` sont apparus sur la branche `cnp-deploy`, jamais sur votre branche principale.
+
+## Limites
+
+- Un `Dockerfile` déjà présent dans votre dépôt n'est pas repris : il sert seulement d'indice à la génération IA. Nimbus écrit ses propres fichiers (`Dockerfile`, `.gitlab-ci.yml`, `cnp.yaml`, `k8s/`) sur la branche `cnp-deploy`, écrasés à chaque déploiement. La valeur `EXPOSE` suit le port du tableau. Sans framework reconnu, les fichiers reprennent la proposition IA que vous avez approuvée. Détails par type d'application : [Déployer n'importe quelle autre application](/parcours/autre-application).
+- Aucune variable `PORT` n'est injectée dans le conteneur. Votre application doit écouter le port imposé (tableau ci-dessus, ou port de la proposition IA approuvée) sur `0.0.0.0`.
+- WebSocket : rien n'est configuré contre côté Nimbus, à vérifier sur votre installation.
+- Le mode de migration vaut `manual` par défaut. Changez-le seulement après avoir lu le résultat de `migration preview` ou de `migration options`.
+- PostgreSQL est indisponible pour un site `static`. Sur une cible de bord, toute base est refusée avec le code `409` (`unsupported_on_edge`). La préparation seule ne provisionne aucune base.
+- Le disque de l'application est éphémère. Tout fichier local disparaît au redéploiement, donc stockez les téléversements sur un service externe. Détails dans [Déployer n'importe quelle autre application](/parcours/autre-application).
+- Travaillez toujours sur votre branche principale. Ne poussez jamais sur `cnp-deploy`, car ArgoCD ne suit que cette branche et vos commits seraient écrasés.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « `repository_id` est requis » | Identifiant du dépôt absent | Ajoutez `--repository-id 123` ou `"repository_id": 123` dans le fichier d'entrée |
+| « framework non supporté » | Framework inconnu ou mal orthographié | Reprenez une valeur de la liste officielle ou laissez la détection automatique |
+| « PostgreSQL indisponible pour un site statique » (`400`) | Base demandée pour un site `static` | Retirez le bloc `postgres` du plan et redéployez |
+| « ce framework est pris en charge par Nimbus ; utilisez sa configuration native » (`422`) | Analyse IA demandée pour un framework officiel | Déployez avec `services configure` sans génération |
+| « les sources ont changé ; générer et examiner une nouvelle proposition » (`409`) | Nouveau commit après l'examen de la proposition IA | Relancez `generation preview`, approuvez la nouvelle proposition, puis reconfigurez avec le nouveau jeton |
+
+## Pour un agent
+
+1. Demandez le dépôt, le framework et la cible. Attendez la réponse avant toute commande d'écriture.
+2. Vérifiez les fichiers signature (`go.mod`, `package.json`, `pom.xml`, `requirements.txt`, `pyproject.toml`, `index.html`) avant d'affirmer le framework.
+3. Imposez l'écoute sur le port du tableau et sur `0.0.0.0`. Constatez par un démarrage local.
+4. Lancez `nimbus services migration preview <ID_DU_DEPOT> --framework <FRAMEWORK>` avant tout plan avec base. Gardez `manual`.
+5. Ne touchez jamais à la branche `cnp-deploy`. Poussez uniquement sur la branche principale.
+6. Constatez le résultat avec `nimbus services status 123 --json`, où `123` est l'identifiant du service.
+
+## Voir aussi
+
+- [Frameworks pris en charge](/plateforme/frameworks)
+- [Branches et pipeline](/plateforme/branches-et-pipeline)
+- [Déployer n'importe quelle autre application](/parcours/autre-application)

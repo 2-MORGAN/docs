@@ -1,0 +1,103 @@
+---
+title: "Dépanner : par où commencer"
+description: "Trouvez la cause de votre panne dans Nimbus : arbre de décision du symptôme vers la commande ou l'écran qui répare."
+keywords: ["dépanner", "panne", "erreur", "diagnostic", "symptôme", "aide", "ne marche pas"]
+---
+
+## Que voyez-vous ?
+
+Partez de votre symptôme, suivez la question, et vous arrivez sur l'écran ou la commande qui répare. Chaque section renvoie vers la page de référence qui décrit le geste en détail.
+
+<AccordionGroup>
+<Accordion title="Mon application ne répond plus ou affiche une erreur">
+
+Ouvrez la page du service et lisez le panneau **Santé** ([Santé et ressources](/plateforme/sante-et-ressources)). Si le badge affiche **En panne** ou **Dégradé** et qu'une **Dernière erreur** (ou **Erreur en cours**) apparaît, suivez **Voir les logs** sous le détail. Sinon, ouvrez **Journaux** (groupe **Observabilité**) pour lire les journaux ([Journaux](/plateforme/logs)). En CLI, enchaînez les deux lectures :
+
+```sh
+nimbus services observability health 123 --json
+```
+
+```sh
+nimbus services observability logs 123 --window 1h --level error --json
+```
+
+Ici, `123` est l'identifiant du service. Si les journaux montrent une variable manquante ou une connexion refusée à la base, corrigez dans [Variables](/plateforme/variables) ou [PostgreSQL](/plateforme/postgresql), puis redéployez. Si les journaux sont vides et la santé dit **Arrêté**, votre application est simplement éteinte : cliquez sur **Démarrer** sur la page du service.
+
+Si la santé est bonne mais que l'adresse répond en erreur, lisez le code retour. Une erreur 404 vient d'une route inconnue dans votre application, ou d'un déploiement encore en cours : attendez sa fin avant de conclure. Une erreur 502 signale un pipeline ou une synchronisation en échec : lisez alors le panneau **Diagnostic de déploiement** ([Échecs de déploiement](/plateforme/echecs-de-deploiement)). Vérifiez aussi que votre application écoute le bon port sur `0.0.0.0` : ce port est imposé par le framework et aucune variable PORT n'est injectée. Toute application web possède une adresse HTTP même sans passerelle : seul un worker n'a pas d'URL.
+
+</Accordion>
+<Accordion title="Mon dépôt n'apparaît pas dans la liste">
+
+Si votre dépôt GitLab n'apparaît pas dans la liste au moment de créer un projet, vérifiez d'abord votre jeton GitLab : s'il manque ou s'il a expiré, enregistrez-le de nouveau. Quand le jeton de plateforme est absent, seuls les dépôts où vous avez le rôle Maintainer sont proposés : les autres sont filtrés et l'interface affiche « Aucun dépôt disponible. Le rôle Maintainer sur un dépôt GitLab est nécessaire pour le déployer. ». Dans ce cas, demandez le rôle Maintainer sur le dépôt ou sur son sous-groupe GitLab, ou choisissez un groupe où vous êtes Maintainer. En CLI, vérifiez quels dépôts vous voyez avec :
+
+```sh
+nimbus gitlab repositories --json
+```
+
+</Accordion>
+<Accordion title="Mon déploiement a échoué">
+
+Ouvrez l'onglet **Déploiement** et lisez le panneau **Diagnostic de déploiement** (titré **Dernier déploiement échoué** quand un échec existe) ([Échecs de déploiement](/plateforme/echecs-de-deploiement)). L'étape nommée (**Préparation**, **Pipeline GitLab**, **Synchronisation ArgoCD** ou **Démarrage Kubernetes**) vous dit où chercher. En CLI :
+
+```sh
+nimbus services deployment-failure 123 --json
+```
+
+Si l'étape est **Pipeline GitLab**, cliquez sur **Ouvrir le job dans GitLab** : la cause précise est dans le journal du job, pas dans le panneau. Si l'étape est **Démarrage Kubernetes**, vérifiez vos variables et votre base avant de relancer. Si le panneau affiche **Aucun échec depuis le dernier déploiement réussi.**, votre déploiement a en fait réussi : cherchez ailleurs.
+
+</Accordion>
+<Accordion title="Mon déploiement reste en attente et ne part pas">
+
+Regardez si la notice **Déploiement en attente d'AKS** s'affiche : la cible AKS est arrêtée ou en démarrage, et votre déploiement attend son redémarrage. Rien n'est relancé automatiquement : demandez à un administrateur de démarrer le cluster, ou choisissez une autre cible (**On premise** par défaut). Vérifiez l'état du cluster avec :
+
+```sh
+nimbus clusters power get aks --json
+```
+
+Si la cible est un VPS qui affiche **Indisponible** dans le champ **Cible de déploiement**, le serveur n'est pas **Prêt** : suivez la page [Ajouter votre serveur](/plateforme/vps).
+
+</Accordion>
+<Accordion title="Je vois une erreur 403 ou un accès refusé">
+
+Lisez le message exact ([Messages d'erreur](/depannage/messages)). `Vous n'avez pas accès à ce projet.` signifie que vous n'êtes pas membre du projet : demandez à un propriétaire de vous ajouter. `Configurez votre jeton GitLab…` signifie que votre jeton GitLab manque ou a expiré : enregistrez-le de nouveau. `Réservé aux administrateurs de Nimbus.` signifie que l'action exige un administrateur : ne contournez pas, demandez à l'équipe Nimbus.
+
+</Accordion>
+<Accordion title="Mon test Discord est refusé ou mes alertes ne partent plus">
+
+Si le bouton affiche **Réessayer dans `{n}` s** ou si la CLI répond `un message de test vient d'être envoyé : réessayez dans quelques secondes`, attendez 10 secondes : c'est le cooldown normal ([Alertes Discord](/plateforme/alertes-discord)). Si le panneau affiche **Ce webhook est désactivé.**, le webhook a été supprimé côté Discord : enregistrez-en un nouveau avec **Remplacer**. Si Discord est injoignable, attendez quelques minutes : les alertes reprendront toutes seules.
+
+</Accordion>
+<Accordion title="Mon application consomme trop ou redémarre en boucle">
+
+Ouvrez **Ressources et coûts** (groupe **Observabilité**) et sélectionnez **7 j** dans **Période des ressources** : lisez les courbes **CPU**, **Mémoire** et **Redémarrages** ([Santé et ressources](/plateforme/sante-et-ressources)). Des redémarrages qui montent avec une mémoire qui grimpe annoncent une fuite ou une limite trop basse : augmentez la mémoire ou corrigez le code, puis vérifiez avec un test de charge. En CLI :
+
+```sh
+nimbus services observability resources 123 --window 7d --json
+```
+
+</Accordion>
+<Accordion title="Mon image est bloquée ou mes dépendances inquiètent">
+
+Un statut **Déploiement bloqué** dans le panneau **Analyse de l’image** signifie qu'une faille critique corrigeable interdit la mise en ligne : mettez à jour la dépendance et redéployez ([Dépendances et image](/plateforme/dependances-et-image)). Un statut **Échec de l’analyse** ne bloque rien : cliquez sur **Réessayer l’analyse**. Si le panneau **Dépendances** affiche **`{n}` à mettre à jour**, traitez les **Majeure** avec prudence : elles peuvent casser l'application.
+
+</Accordion>
+</AccordionGroup>
+
+## Les trois réflexes qui règlent 80 % des cas
+
+1. **Lisez le diagnostic avant de toucher.** Le panneau **Diagnostic de déploiement** ou **Santé** nomme déjà la cause une fois sur deux : une correction tentée à l'aveugle efface souvent la preuve.
+2. **Vérifiez la session et le jeton.** Une session expirée (`Session expirée, reconnectez-vous.`) et un jeton GitLab manquant (`Configurez votre jeton GitLab…`) expliquent une grande partie des 401 et 403.
+3. **Actualisez après chaque geste.** Statuts, badges et diagnostics sont des photos : cliquez sur **Actualiser la santé** ou **Actualiser le diagnostic** (ou relancez la commande) après chaque correction, sinon vous lisez l'état d'avant.
+
+## Pour un agent
+
+1. Demandez le symptôme exact et l'identifiant du service avant toute commande. Attendez ici la réponse si l'utilisateur doit choisir.
+2. Suivez l'arbre ci-dessus dans l'ordre : santé, puis journaux, puis diagnostic de déploiement. Ne sautez jamais directement à la correction.
+3. Ne relancez jamais un redéploiement, un test de charge ou une restauration sans l'accord explicite de l'utilisateur : ces actions ont des effets visibles et parfois irréversibles.
+4. Quand un message exact apparaît, cherchez-le tel quel dans la page [Messages d'erreur](/depannage/messages) avant d'interpréter.
+
+## Voir aussi
+
+- [Messages d'erreur](/depannage/messages)
+- [Consulter les journaux](/plateforme/logs)
+- [Comprendre un échec de déploiement](/plateforme/echecs-de-deploiement)

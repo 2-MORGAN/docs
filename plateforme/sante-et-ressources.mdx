@@ -1,0 +1,130 @@
+---
+title: "Surveiller la santé et les ressources de votre application"
+description: "Vérifiez si votre application est saine, lisez sa consommation CPU et mémoire, et consultez la santé globale de la plateforme."
+keywords: ["santé", "sain", "dégradé", "ressources", "CPU", "mémoire", "redémarrages", "santé de la plateforme"]
+---
+
+## En bref
+
+Un coup d'œil vous dit si votre application tourne bien, et un deuxième vous dit combien elle consomme. Cette page couvre les deux, plus la santé globale réservée aux administrateurs.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service, **Vue d'ensemble** (panneau **Santé**) et **Ressources et coûts** (panneau **Ressources**) | `nimbus services observability health`, `nimbus services observability resources`, `nimbus services status` | Tout membre du projet (lecture seule) | Immédiat | Oui, la lecture ne change rien |
+
+## Avant de commencer
+
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+- Vous connaissez l'identifiant du service (`<ID>`, par exemple `123`), visible avec `nimbus services list --json`.
+- Votre application est déployée. Un projet jamais déployé n'a ni santé ni consommation à afficher.
+
+<Note>Sur une cible edge (Cloudflare), les onglets de santé et de ressources sont masqués : un site statique n'a ni processus surveillé ni pods à mesurer.</Note>
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Lisez la santé">
+Sur la page du service, le panneau **Santé** affiche un badge : **Sain**, **Dégradé**, **En panne**, **Démarrage**, **Arrêté** ou **Inconnu**. Sous le badge, la section **Contrôles** détaille ce qui a été vérifié. Si une mesure manque, vous lisez **Non mesuré** à la place d'une valeur.
+</Step>
+<Step title="Allez aux journaux en cas de doute">
+Si le badge affiche **Dégradé** ou **En panne**, cliquez sur **Voir les logs** : vous arrivez directement sur les journaux filtrés pour comprendre. La section **Erreur en cours** ou **Dernière erreur** vous donne le premier indice.
+</Step>
+<Step title="Actualisez">
+Cliquez sur **Actualiser la santé** pour relire l'état. Pendant la lecture, vous voyez **Chargement…**, et **État indisponible.** si la plateforme ne répond pas.
+</Step>
+<Step title="Lisez les ressources">
+Ouvrez **Ressources et coûts** (groupe **Observabilité**). Le panneau **Ressources** affiche trois métriques : **CPU** (moyenne et maximum), **Mémoire** (maximum) et **Redémarrages** (total sur la période), chacune avec sa courbe et son allocation par instance (**Par instance · Réservé… · Limite…**). Cliquez sur **Actualiser les ressources** pour relire.
+</Step>
+<Step title="Choisissez la période">
+Dans **Période des ressources**, sélectionnez **1 h**, **6 h**, **24 h** ou **7 j**. La période par défaut est **1 h**. Pour une fuite mémoire lente, passez à **7 j** : une courbe d'une heure ne montre jamais une dérive de plusieurs jours.
+</Step>
+</Steps>
+
+Si la mention **Mesures partielles.** apparaît avec **Données du**, la plateforme vous prévient que les mesures sont incomplètes ou conservées d'une lecture précédente. C'est une information, pas une erreur : fiez-vous à la tendance, pas au chiffre exact.
+
+</Tab>
+<Tab title="CLI">
+
+La santé se lit en une commande, sans option :
+
+```sh
+nimbus services observability health 123 --json
+```
+
+Elle renvoie l'état courant du service. Ici, `123` est l'identifiant du service.
+
+La consommation se lit avec une fenêtre à choisir :
+
+```sh
+nimbus services observability resources 123 --window 24h --json
+```
+
+Ici, `--window` accepte `1h`, `6h`, `24h` ou `7d` (une semaine s'écrit `7d` en CLI, pas `7 j`). Notez la différence avec les journaux, qui proposent `15m` au lieu de `7d` : chaque écran a ses propres fenêtres.
+
+L'état de déploiement, plus simple, se lit avec l'ancienne route :
+
+```sh
+nimbus services status 123 --json
+```
+
+Elle répond l'état, la raison éventuelle (`reason`, par exemple un démarrage ou un arrêt en cours via `power_pending`) et les erreurs remontées (`power_error`). Utilisez-la dans vos scripts de surveillance, et `observability health` pour le diagnostic.
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+Dans l'interface, le badge **Santé** affiche une valeur autre que **Inconnu**, et les courbes **CPU**, **Mémoire** et **Redémarrages** montrent des points au lieu de **Aucune mesure**. En CLI, les deux commandes `observability` répondent un objet avec l'état et les séries, et `status` répond l'état avec la raison éventuelle. Quand tout va bien, la santé dit **Sain** et les redémarrages restent à zéro.
+
+## Quand la santé est saine mais l'URL répond 404 ou 502
+
+Si le badge **Santé** affiche **Sain** mais que l'adresse de l'application répond `404` ou `502`, le problème vient de l'application ou du déploiement, pas de la passerelle. Vérifiez dans l'ordre : le port écouté par l'application (il doit correspondre au port déclaré dans le dépôt), l'écoute sur `0.0.0.0` (une écoute sur `localhost` seule reste injoignable), l'existence de la route demandée dans votre code, et l'absence de déploiement en cours (`nimbus services status 123 --json`). N'activez pas la gateway pour corriger ce cas : sans gateway l'adresse HTTP répond déjà, et avec gateway l'erreur reste identique.
+
+## Limites
+
+- Les fenêtres des ressources sont fixes : `1h`, `6h`, `24h`, `7d`. Il n'y a ni `15m` ni fenêtre personnalisée.
+- Sans le collecteur de mesures configuré, la santé tombe en repli partiel : vous voyez l'état calculé sans les détails, avec la mention **Mesures partielles.**.
+- La lecture est une photo instantanée. Elle ne vous alerte pas toute seule : pour être prévenu d'une panne, configurez les [Alertes Discord](/plateforme/alertes-discord).
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `État indisponible.` (panneau **Santé**) | La plateforme ne répond pas à la lecture | Cliquez sur **Actualiser la santé**, puis consultez la [santé de la plateforme](#sante-de-la-plateforme-admin) si le problème dure |
+| `Vous n'avez pas accès à ce projet.` | Vous n'êtes pas membre du projet | Demandez à un propriétaire de vous ajouter, ou vérifiez l'identifiant du service |
+| `Le projet est en cours de création.` (code `service_not_ready`) | Le service n'est pas encore déployé | Attendez la fin du déploiement, puis relisez |
+| `La requête a pris trop de temps. Essayez une période plus courte.` | Fenêtre trop large pour le backend | Réduisez `--window` (par exemple `1h`) et réessayez |
+
+## Santé de la plateforme (admin)
+
+La page **Administration** (menu réservé aux administrateurs) affiche la section **Santé de la plateforme**, sondée toutes les 30 secondes. Elle regroupe cinq blocs : **Nœuds**, **Agents de surveillance**, **Certificats TLS**, **Applications ArgoCD** et **Alertes en cours**, plus les **Erreurs du backend**. Chaque bloc affiche **Opérationnel**, **À surveiller**, **Incident** ou **État inconnu**.
+
+En CLI, un administrateur lit la même chose avec une seule commande :
+
+```sh
+nimbus platform health --json
+```
+
+Elle est refusée aux non-administrateurs avec `Réservé aux administrateurs de Nimbus.`. Pour vérifier que l'API répond, sans aucun droit particulier, utilisez le ping public :
+
+```sh
+nimbus platform ping --json
+```
+
+Il ne demande ni connexion ni rôle, et répond l'état de l'API, de sa base de données et de l'observabilité (`status`, `service`, `database`, `observability`). Si le ping échoue, le problème est du côté de la plateforme ou de votre réseau, pas de votre application : prévenez l'équipe Nimbus.
+
+## Pour un agent
+
+1. Demandez l'identifiant du service, ou trouvez-le avec `nimbus services list --json`. Attendez ici la réponse si l'utilisateur doit choisir.
+2. Commencez toujours par `nimbus services observability health <ID> --json`, puis `nimbus services observability resources <ID> --window 24h --json` si la santé est dégradée.
+3. Ne concluez jamais sur une seule lecture : relisez après quelques minutes avant d'annoncer une panne durable.
+4. `nimbus platform health` exige un administrateur : ne la lancez pas avec un compte ordinaire, et ne demandez jamais à l'utilisateur ses droits d'admin pour contourner un 403.
+
+## Voir aussi
+
+- [Consulter les journaux](/plateforme/logs)
+- [Échecs de déploiement](/plateforme/echecs-de-deploiement)
+- [Recevoir les alertes Discord](/plateforme/alertes-discord)

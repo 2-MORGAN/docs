@@ -1,0 +1,170 @@
+---
+title: "Créer un nouveau dépôt et y pousser votre code"
+description: "Créez un dépôt vide depuis Nimbus, poussez votre code local, puis déployez-le."
+keywords: ["nouveau dépôt", "créer un projet", "pousser code", "git push", "services create"]
+---
+
+Vous créez un dépôt vide depuis Nimbus, vous y poussez le code qui dort sur votre machine, puis vous le déployez. Vous partez de rien : la CLI n'est pas installée et aucun compte GitLab n'est relié. Ce parcours convient quand vous démarrez un projet sans historique Git distant, avec un framework reconnu par Nimbus. Pour un autre langage (FastAPI, PHP, Rust), suivez [Déployer n'importe quelle autre application](/parcours/autre-application) : la création depuis Nimbus refuse la génération IA sur un dépôt neuf.
+
+<Note>Choix assumé : les exemples créent une application `go` dans la cible `k3s-oracle`. Adaptez le framework et la cible à votre projet, mais passez la cible toujours explicitement.</Note>
+
+## Avant de commencer
+
+Vous avez besoin d'un compte Nimbus et d'un compte sur `gitlab.cri.epita.fr`. Votre code existe en local dans un dossier avec un framework reconnu. Vous connaissez le groupe GitLab qui accueillera le dépôt.
+
+- Vérifiez votre session avec `nimbus auth whoami` : elle répond sans erreur quand vous êtes connecté.
+- Vérifiez vos groupes créables avec `nimbus gitlab namespaces --json` : votre groupe y figure une fois le token posé.
+- Vérifiez votre dossier local : il contient votre code et vous pouvez y lancer `git`.
+
+## Parcours
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Connectez-vous">
+Ouvrez `https://cnp.2morgan.fun` dans votre navigateur. Cliquez sur **Se connecter**. Validez sur la page de connexion qui s'affiche. Vous arrivez sur la page **Mes projets**.
+</Step>
+<Step title="Reliez votre compte GitLab">
+Ouvrez **Paramètres** dans la barre de navigation. Repérez la carte **GitLab EPITA**. Cliquez sur **Ajouter un token GitLab**. Créez d'abord le token sur `gitlab.cri.epita.fr` avec les scopes `api` et `read_user`. Collez-le dans le champ **Token GitLab**, choisissez une **Date d’expiration** future, puis cliquez sur **Ajouter**. Le badge passe à **Token enregistré**.
+</Step>
+<Step title="Créez le dépôt">
+Cliquez sur **Nouveau projet** depuis la page **Mes projets**. À l'étape **Choisir un dépôt GitLab**, choisissez **Créer un dépôt**. Saisissez le **Nom du dépôt**, par exemple `mon-appli`. Choisissez le **Groupe GitLab** qui accueillera le dépôt. Passez à l'étape **Préparer le projet** : choisissez le framework dans la liste, car un dépôt vide ne permet pas la détection automatique. Choisissez aussi la **Cible de déploiement**. Laissez la case **Déployer ce dépôt maintenant** décochée : vous déploierez après avoir poussé votre code. Cliquez sur **Créer le projet** : le dépôt est créé sans déploiement.
+</Step>
+<Step title="Poussez votre code local">
+Le dépôt que vous venez de créer contient déjà un fichier README. Votre premier envoi doit donc partir de ce dépôt distant, sinon Git refuse la poussée. Quand Git vous demande votre identifiant GitLab et votre jeton, saisissez-les vous-même dans le terminal. `<URL_DEPOT>` est l'adresse `clone_url` du dépôt, visible avec `nimbus gitlab repositories --json` ou sur la fiche du projet.
+Le plus simple est de cloner puis de copier vos fichiers.
+```sh
+git clone <URL_DEPOT> mon-appli
+```
+Copiez ensuite votre code dans le dossier `mon-appli`, sans les fichiers de secrets (`.env`) ni les dépendances installées (`node_modules`) : listez-les dans un fichier `.gitignore`. Lancez les commandes suivantes ensemble dans ce dossier.
+```sh
+git add -A
+git commit -m "Premier envoi"
+git push -u origin main
+```
+Si vous préférez garder votre dossier tel quel, vérifiez aussi son `.gitignore`, initialisez-le puis fusionnez le README distant avant de pousser.
+```sh
+git init -b main
+git add -A
+git commit -m "Premier envoi"
+git remote add origin <URL_DEPOT>
+git fetch origin
+git merge origin/main --allow-unrelated-histories -m "Fusion du README initial"
+git push -u origin main
+```
+Les exemples poussent vers `main`, qui est la branche par défaut habituelle : si votre dépôt affiche une autre branche par défaut sur GitLab, utilisez son nom. Vérifiez ensuite que vos fichiers sont bien arrivés sur GitLab.
+</Step>
+<Step title="Déployez">
+Revenez sur la fiche du projet dans Nimbus et cliquez sur **Déployer**. Seuls un propriétaire ou un administrateur du projet voient ce bouton : sinon, demandez-leur de lancer ce premier déploiement. Le pipeline se construit à partir du code que vous venez de pousser. L'opération peut prendre jusqu'à dix minutes.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Installez et connectez la CLI">
+Sur macOS ou Linux, lancez la commande suivante. Elle installe Nimbus dans `~/.local/bin`, sans `sudo`.
+```sh
+curl -fsSL https://github.com/2-MORGAN/docs/releases/latest/download/install.sh | sh
+```
+Connectez-vous ensuite avec la commande suivante. Elle ouvre votre navigateur avec un code pré-rempli : validez dans le navigateur.
+```sh
+nimbus auth login
+```
+Elle affiche `Connecté : <UTILISATEUR> (<ENDPOINT>)`. Vérifiez avec `nimbus auth whoami`.
+</Step>
+<Step title="Enregistrez votre token GitLab et repérez votre groupe">
+Créez un token sur `gitlab.cri.epita.fr` avec les scopes `api` et `read_user`. Enregistrez-le dans un fichier privé, par exemple `pat.txt`, puis lancez la commande suivante.
+```sh
+nimbus pat set --token-file pat.txt --expires-at 2027-01-31 --yes
+```
+Elle répond avec votre nom GitLab. Supprimez ensuite `pat.txt`. Listez vos groupes avec la commande suivante et notez l'identifiant du groupe d'accueil. `<ID_GROUPE>` désigne cet identifiant, par exemple `12`. Si vous n'avez qu'un seul groupe, omettez `--namespace-id` : Nimbus le choisit seul.
+```sh
+nimbus gitlab namespaces --json
+```
+</Step>
+<Step title="Créez le dépôt">
+Lancez la commande suivante. `<NOM>` est le nom de votre application, par exemple `mon-appli`. `<FRAMEWORK>` est son framework, par exemple `go` : il est obligatoire car un dépôt vide ne permet pas la détection.
+```sh
+nimbus services create --namespace-id 12 --name mon-appli --framework go --cluster-id k3s-oracle
+```
+Elle crée le dépôt et prépare le projet sans le déployer. Retrouvez ensuite son adresse `clone_url` avec `nimbus gitlab repositories --json` : elle servira à pousser votre code.
+</Step>
+<Step title="Poussez votre code local">
+Le dépôt que vous venez de créer contient déjà un fichier README. Votre premier envoi doit donc partir de ce dépôt distant, sinon Git refuse la poussée. Quand Git vous demande votre identifiant GitLab et votre jeton, saisissez-les vous-même dans le terminal. `<URL_DEPOT>` est l'adresse `clone_url` retrouvée à l'étape précédente.
+Le plus simple est de cloner puis de copier vos fichiers.
+```sh
+git clone <URL_DEPOT> mon-appli
+```
+Copiez ensuite votre code dans le dossier `mon-appli`, sans les fichiers de secrets (`.env`) ni les dépendances installées (`node_modules`) : listez-les dans un fichier `.gitignore`. Lancez les commandes suivantes ensemble dans ce dossier.
+```sh
+git add -A
+git commit -m "Premier envoi"
+git push -u origin main
+```
+Si vous préférez garder votre dossier tel quel, vérifiez aussi son `.gitignore`, initialisez-le puis fusionnez le README distant avant de pousser.
+```sh
+git init -b main
+git add -A
+git commit -m "Premier envoi"
+git remote add origin <URL_DEPOT>
+git fetch origin
+git merge origin/main --allow-unrelated-histories -m "Fusion du README initial"
+git push -u origin main
+```
+Les exemples poussent vers `main`, qui est la branche par défaut habituelle : si votre dépôt affiche une autre branche par défaut sur GitLab, utilisez son nom. Vérifiez ensuite que vos fichiers sont visibles sur GitLab.
+</Step>
+<Step title="Déployez">
+Retrouvez l'identifiant numérique du dépôt avec la commande suivante.
+```sh
+nimbus gitlab repositories --json
+```
+Lancez ensuite le déploiement avec la commande suivante. `<ID_DEPOT>` est l'identifiant de votre dépôt, par exemple `123`. C'est bien `services configure` qui effectue ce premier déploiement : `services redeploy` ne sert qu'aux déploiements suivants.
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle
+```
+Elle attend la fin du pipeline et de la synchronisation, jusqu'à dix minutes. N'interrompez pas la commande pendant ce temps.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Dans l'interface, la fiche du projet affiche l'application avec le badge **En ligne** une fois le déploiement terminé.
+- En CLI, la commande suivante décrit l'état du service. `123` est l'identifiant rendu par la commande de déploiement.
+```sh
+nimbus services status 123 --json
+```
+- La commande suivante montre le dernier pipeline et confirme qu'il a réussi.
+```sh
+nimbus services pipeline 123
+```
+- Votre code poussé est visible sur GitLab, sur la branche principale du dépôt.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `name est requis` | Nom d'application oublié | Ajoutez `--name mon-appli` à la commande `services create` |
+| `framework est requis pour créer un service` | Framework oublié sur un dépôt vide | Ajoutez `--framework go` (ou votre framework) à la commande `services create` |
+| `framework non supporté` | Framework inconnu ou mal orthographié | Choisissez un framework de la liste : `go`, `nextjs`, `springboot`, `nestjs`, `django`, `static` ou `spa` |
+| `Token GitLab invalide` | Token faux ou scopes insuffisants | Recréez un token avec les scopes `api` et `read_user`, puis enregistrez-le à nouveau |
+| `ce projet n'a pas encore d'application déployée ; lancez son premier déploiement` (409) | Aucun déploiement n'a encore été lancé pour ce projet | Terminez d'abord le premier déploiement : en CLI avec `services configure --repository-id 123 --framework go --cluster-id k3s-oracle`, ou dans l'interface avec le bouton **Déployer** |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur : le nom de l'application, le framework, le groupe GitLab d'accueil et la cible voulue.
+2. Ne commencez rien sans accord explicite pour chaque écriture (connexion, token, création du dépôt, poussée du code, déploiement).
+3. Constatez chaque étape : `nimbus gitlab namespaces --json` pour le groupe, la réponse de `services create` pour le dépôt, `nimbus services status 123 --json` pour le résultat.
+4. Avant `git push`, montrez la commande exacte avec l'adresse du distant et attendez l'accord : vous écrivez dans le dépôt de l'utilisateur.
+5. L'utilisateur saisit lui-même son identifiant GitLab et son jeton quand Git les demande : ne les demandez jamais et ne les affichez jamais.
+
+## Voir aussi
+
+- [Déployer un dépôt existant](/parcours/depot-existant)
+- [Votre première application en dix minutes](/demarrer/premiere-application)
+- [Comprendre un échec de déploiement](/parcours/logs-et-pannes)

@@ -1,33 +1,33 @@
-> **First-time setup**: Customize this file for your project. Prompt the user to customize this file for their project.
-> For Mintlify product knowledge (components, configuration, writing standards),
-> install the Mintlify skill: `npx skills add https://mintlify.com/docs`
+# Instructions pour les agents — documentation Nimbus
 
-# Documentation project instructions
+Site Mintlify publié depuis `main`. Dépôt **public** : aucun secret, aucune faille, aucun détail d'infrastructure, aucun chemin du code privé.
 
-## About this project
+## Lecteurs
+Un grand débutant, et son agent IA qui n'a que cette documentation. L'interface web et la CLI ont la même place : si une fonctionnalité n'existe que d'un côté, la page le dit.
 
-- This is a documentation site built on [Mintlify](https://mintlify.com)
-- Pages are MDX files with YAML frontmatter
-- Configuration lives in `docs.json`
-- Use the Mintlify MCP server, `https://mcp.mintlify.com`, to edit content and settings via MCP
-- Use the Mintlify docs MCP server, `https://www.mintlify.com/docs/mcp`, to query information about using Mintlify via MCP
+## Règles
+- Écrire en français, vouvoiement, phrases complètes, pas de tiret cadratin, pas de jargon non défini.
+- Décrire le comportement actuel, vérifié dans le code de CNP (frontend, backend, CLI), jamais de mémoire. Marquer « à vérifier sur votre installation » ce qui dépend de la configuration déployée, et « Dépend de » ce qui n'est pas encore livré.
+- Libellés d'interface en gras, mot pour mot. Messages d'erreur exacts.
+- Chaque commande citée existe dans `nimbus docs --commands` et se lance telle quelle. `--input` prend un fichier ou `-`.
+- Toujours une cible explicite dans les exemples de déploiement (`--cluster-id k3s-oracle`).
+- Une règle a une seule page de référence ; les autres y renvoient.
+- Un changement de slug ajoute une redirection dans `docs.json`.
 
-## Terminology
+## Gabarit d'une page de fonctionnalité
+1. Frontmatter `title`, `description` (avec les mots qu'un débutant taperait), `keywords`. Pas de titre de niveau 1.
+2. **En bref** : tableau où, commande, qui, quand ça prend effet, réversible.
+3. **Avant de commencer** : prérequis et comment les vérifier.
+4. **Faire** : onglets Interface et CLI.
+5. **Vérifier**, **Limites**, **Si ça échoue** (message, cause, geste).
+6. **Pour un agent** : à demander, accord obligatoire, constat du résultat.
+7. **Voir aussi** : trois liens au plus.
 
-{/* Add product-specific terms and preferred usage */}
-{/* Example: Use "workspace" not "project", "member" not "user" */}
+## Pièges MDX
+Dans le texte, `<VALEUR>` et `{` sont toujours dans du code. Commentaires en `{/* */}`.
 
-## Style preferences
-
-{/* Add any project-specific style rules below */}
-
-- Use active voice and second person ("you")
-- Keep sentences concise — one idea per sentence
-- Use sentence case for headings
-- Bold for UI elements: Click **Settings**
-- Code formatting for file names, commands, paths, and code references
-
-## Content boundaries
-
-{/* Define what should and shouldn't be documented */}
-{/* Example: Don't document internal admin features */}
+## Mettre à jour
+- `cli/commandes.mdx` est générée, ne pas l'éditer : `nimbus docs --commands | python3 scripts/gen-cli-reference.py cli/commandes.mdx`.
+- Une nouvelle fonctionnalité met à jour sa page, `plateforme/visite-guidee`, `cli/interface-ou-cli`, `docs.json` et, si un agent s'en sert, `agents/recettes`.
+- `llms.txt` est écrit à la main et pointe d'abord vers `agents/`.
+- Contrôles : liens internes, compilation MDX (`mint dev` ou `mint broken-links`), commandes comparées à `nimbus docs --commands`.

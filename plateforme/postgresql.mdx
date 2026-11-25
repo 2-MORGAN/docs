@@ -1,0 +1,123 @@
+---
+title: "Ajouter une base PostgreSQL à votre application"
+description: "Créez une base PostgreSQL dédiée à votre application, choisissez la migration et retrouvez vos variables de connexion."
+keywords: ["postgresql", "postgres", "base de données", "migrations", "DB_HOST", "DATABASE_URL"]
+---
+
+## En bref
+
+Choisissez PostgreSQL quand votre application doit conserver des données entre deux déploiements, par exemple des comptes ou un catalogue. Si vous avez seulement quelques réglages à stocker, les variables seules suffisent et vous n'avez pas besoin de base.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Fiche application, onglet **PostgreSQL** | `nimbus services postgres get`, `create`, `delete` | Lecture pour tous les rôles du projet, création et suppression pour les propriétaires et administrateurs | Base active après provisioning, suppression définitive après nettoyage | La suppression est irréversible |
+
+## Avant de commencer
+
+- Votre application est déployée et démarrée. Vous le vérifiez dans sa fiche, qui affiche son URL publique.
+- Votre application n'est pas un site statique. Un site statique ne peut pas utiliser PostgreSQL.
+- Vous êtes propriétaire ou administrateur du projet si vous voulez créer ou supprimer la base. Avec un autre rôle, vous pouvez seulement consulter ses informations.
+- La CLI est connectée : `nimbus auth whoami` répond sans erreur.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la carte Base de données">
+Ouvrez la fiche de votre application. Cliquez sur l'onglet **PostgreSQL**. La section **Base de données** affiche la carte **PostgreSQL**.
+</Step>
+<Step title="Lisez l'état actuel">
+Sans base, la carte affiche `Aucune base PostgreSQL configurée.` Avec une base, elle affiche les champs **Base**, **Hôte**, **Port**, **Utilisateur** et **Migrations**. Le mot de passe n'y figure jamais.
+</Step>
+<Step title="Ajoutez la base">
+Cliquez sur **Ajouter PostgreSQL**. Le dialogue **PostgreSQL et migrations** s'ouvre et vous demande comment le schéma sera appliqué avant le déploiement. Si votre rôle ne le permet pas, la carte affiche `La gestion de la base est réservée aux propriétaires et administrateurs.`
+</Step>
+<Step title="Choisissez la migration">
+Choisissez **Gestion manuelle** si vous appliquez le schéma vous-même, par exemple au démarrage de votre application. Sinon choisissez l'outil détecté dans votre dépôt, signalé par le badge **DÉTECTÉ** : il s'exécute avant le déploiement. Cliquez sur **Créer PostgreSQL**. La base devient active après provisioning.
+</Step>
+<Step title="Branchez votre application">
+Nimbus injecte `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` et `DATABASE_URL` dans les variables de votre application au moment de la création de la base. Cliquez sur **Consulter les variables de l'application** pour vérifier leurs noms : les valeurs n'y sont jamais affichées. Utilisez ces variables telles quelles dans votre code.
+</Step>
+<Step title="Supprimez la base">
+Cliquez sur **Supprimer PostgreSQL**. Le dialogue **Supprimer PostgreSQL ?** précise que la base, son volume de stockage et toutes les données associées seront définitivement supprimés. Nimbus sauvegarde d'abord la base ; si cette sauvegarde échoue, la suppression s'interrompt et le dialogue propose de réessayer ou de supprimer sans sauvegarde. Confirmez avec **Supprimer la base**. Retrouvez la sauvegarde dans le panneau [Sauvegardes](/plateforme/sauvegardes).
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Consultez la base">
+```sh
+nimbus services postgres get 123 --json
+```
+Elle renvoie les informations de connexion, sans le mot de passe. Remplacez `123` par l'identifiant de votre application, visible dans sa fiche.
+</Step>
+<Step title="Vérifiez la migration détectée">
+```sh
+nimbus services migration options 123 --json
+```
+Elle affiche ce que Nimbus détecte dans votre dépôt, sans rien créer. Pour un dépôt jamais déployé, utilisez `nimbus services migration preview <ID_DEPOT> --json`, où `<ID_DEPOT>` est l'identifiant GitLab du dépôt.
+</Step>
+<Step title="Créez la base">
+Créez le fichier `migration.json` avec ce contenu exact :
+```json
+{"migration": {"mode": "manual"}}
+```
+Puis lancez :
+```sh
+nimbus services postgres create 123 --db-name kanban --input migration.json --json
+```
+`--db-name` fixe le nom de la base, ici `kanban`. Gardez le mode `manual` si vous appliquez le schéma vous-même, sinon indiquez l'outil détecté à l'étape précédente. Sans fichier `--input`, Nimbus applique le mode `manual` par défaut. La base devient active après provisioning.
+</Step>
+<Step title="Supprimez la base">
+```sh
+nimbus services postgres delete 123 --yes --json
+```
+`--yes` confirme la suppression sans demander. Nimbus sauvegarde d'abord la base, puis la suppression devient définitive après nettoyage.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La carte **Base de données** affiche les champs **Base**, **Hôte**, **Port**, **Utilisateur** et **Migrations** au lieu de `Aucune base PostgreSQL configurée.`
+- L'onglet **Variables** liste `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` et `DATABASE_URL`, sans jamais afficher leurs valeurs.
+- En CLI, `nimbus services postgres get 123 --json` renvoie un objet avec l'hôte, le port, la base et l'utilisateur.
+
+## Limites
+
+- La base utilise l'image `postgres:16-alpine`, avec un stockage de `1Gi` par défaut (`1Gi` ou `2Gi` possibles) choisi à la création.
+- Le mot de passe est généré par Nimbus. Il n'est jamais affiché dans l'interface ni renvoyé par l'API, seulement injecté dans les variables.
+- Un site statique ne peut pas se connecter directement à PostgreSQL : l'ajout est refusé.
+- La suppression détruit la base et son stockage. Elle est irréversible après nettoyage, même si une sauvegarde `before-delete` est conservée.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Aucune base PostgreSQL configurée.` | Aucune base créée pour cette application | Créez-la avec **Ajouter PostgreSQL** ou `postgres create` |
+| `La gestion de la base est réservée aux propriétaires et administrateurs.` | Votre rôle ne permet ni création ni suppression | Demandez à un propriétaire ou à un administrateur |
+| `PostgreSQL n'est pas disponible pour un site statique.` | Application statique, sans exécution serveur | Déployez une application avec un serveur avant d'ajouter PostgreSQL |
+| `Les paramètres PostgreSQL sont incompatibles avec la base existante.` | Base recréée avec une image, une taille, un nom ou une migration différents | Réutilisez les paramètres d'origine, ou supprimez la base avant de la recréer |
+| `paramètres PostgreSQL invalides : …` | Image ou taille de stockage refusée | Utilisez `postgres:16-alpine` et `1Gi` ou `2Gi` |
+| `migration tool is not ready: …` | Fichiers de migration manquants dans le dépôt | Ajoutez les fichiers requis sur la branche par défaut, puis relancez l'analyse |
+| `configuration de migration invalide` | Outil de migration inconnu ou incompatible avec le dépôt | Choisissez un outil proposé par `migration options`, ou `manual` |
+
+## Pour un agent
+
+1. Demandez l'identifiant de l'application et le nom de base souhaité. Attendez ici la réponse.
+2. Constatez l'état avec `nimbus services postgres get 123 --json`, où `123` est l'identifiant de l'application.
+3. Pour la migration, demandez le mode : `manual`, ou l'outil détecté via `nimbus services migration options 123 --json`.
+4. Demandez l'accord explicite avant toute création, et surtout avant toute suppression : elle est irréversible après nettoyage.
+5. Constatez avec `postgres get` que les champs **Base**, **Hôte**, **Port**, **Utilisateur** et **Migrations** sont renseignés, et que les variables `DB_*` existent.
+
+## Voir aussi
+
+- [Sauvegarder et restaurer](/plateforme/sauvegardes)
+- [Gérer les variables](/plateforme/variables)
+- [Ajouter PostgreSQL pas à pas](/parcours/postgresql)

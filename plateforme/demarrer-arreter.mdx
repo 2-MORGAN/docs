@@ -1,0 +1,114 @@
+---
+title: "Démarrer ou arrêter votre application"
+description: "Allumez ou éteignez votre application depuis son en-tête ou avec nimbus services start et stop, puis suivez l'opération."
+keywords: ["démarrer", "arrêter", "start", "stop", "allumer", "éteindre", "power"]
+---
+
+## En bref
+
+Vous allumez ou éteignez votre application sans la supprimer, puis vous suivez la transition jusqu'à ce qu'elle soit effective.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page de l'application, en-tête (boutons **Démarrer** et **Arrêter**) | `nimbus services start 123`, `nimbus services stop 123` | Propriétaires et membres du projet (droit d'opération) | Demande acceptée aussitôt (202), appliquée dans la foulée par Nimbus | Oui, l'opération inverse rallume ou éteint |
+
+Dans cette page, `123` désigne l'identifiant de votre application. Vous le trouvez dans l'adresse de sa page (`/dashboard/services/123`) ou avec `nimbus services list --json`.
+
+## Avant de commencer
+
+- Votre application a déjà été déployée au moins une fois. Sans déploiement, la demande est refusée en 409.
+- Vous êtes propriétaire ou membre du projet, car démarrer et arrêter exigent le droit d'opération. Avec un rôle de superviseur, les boutons restent masqués : demandez à un propriétaire ou à un membre d'agir, ou de vous confier le rôle adapté.
+- Votre application ne tourne pas sur une cible edge. Un worker Cloudflare est serverless et ne se pilote pas à la main, comme expliqué dans les limites.
+- Vous connaissez l'identifiant de l'application (`123`) pour la variante CLI.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la page de l'application">
+Cliquez sur **Projets**, puis sur le nom de votre application. L'en-tête affiche le badge d'état actuel et le bouton adapté : **Démarrer** quand elle est arrêtée, **Arrêter** quand elle tourne.
+</Step>
+<Step title="Cliquez sur Démarrer ou Arrêter">
+Cliquez sur **Démarrer** pour allumer, ou sur **Arrêter** pour éteindre. La demande part aussitôt et le badge passe à **Démarrage en cours…** ou **Arrêt en cours…**.
+</Step>
+<Step title="Attendez le badge final">
+Restez sur la page : elle réinterroge l'état toute seule. Quand le badge affiche **En marche** ou **À l'arrêt**, l'opération est appliquée. Si le badge affiche **En échec**, lisez le motif affiché sous le badge.
+</Step>
+<Step title="Ouvrez votre application">
+Quand le badge affiche **En marche**, cliquez sur **Ouvrir l'application** pour vérifier que votre adresse publique répond dans un nouvel onglet.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Demandez le démarrage ou l'arrêt">
+```sh
+nimbus services start 123
+```
+Elle demande l'allumage de l'application `123`. Pour l'éteindre, lancez plutôt la commande miroir.
+```sh
+nimbus services stop 123
+```
+Elle demande l'extinction de l'application `123`.
+</Step>
+<Step title="Lisez le message d'acceptation">
+En cas de succès, la CLI répond `Demande start acceptée pour #123. Vérifier avec : nimbus services status 123` (ou la variante avec `stop`). Ce message confirme seulement que Nimbus a accepté la demande avec un statut 202, pas que l'application a déjà changé d'état. La commande ne propose aucune option d'attente : c'est à vous de suivre le résultat.
+</Step>
+<Step title="Suivez la transition">
+```sh
+nimbus services status 123
+```
+Elle affiche l'état courant. Répétez-la jusqu'à ce que `power_pending` disparaisse et que le statut soit stabilisé (`on` après un démarrage, `off` après un arrêt). Le détail des états est expliqué dans la page [Lire l'état de votre application](/plateforme/etats).
+</Step>
+</Steps>
+
+<Note>En coulisses, un réconciliateur applique votre demande dans le dépôt GitOps du projet, ce qui prend un moment. C'est pour cela que l'acceptation et l'application sont deux temps distincts.</Note>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le badge affiche **En marche** après un démarrage, **À l'arrêt** après un arrêt.
+- La commande `nimbus services status 123 --json` ne montre plus `power_pending` et renvoie `on` ou `off` selon l'opération.
+- Après un démarrage, le bouton **Ouvrir l'application** ouvre une adresse qui répond.
+- Après un arrêt, l'aperçu de la page signale que l'application est arrêtée et que son adresse est inaccessible.
+
+## Limites
+
+- La demande est asynchrone : le statut 202 veut dire que Nimbus a pris votre demande en compte, et un réconciliateur GitOps l'applique ensuite. L'application ne change donc pas d'état à la seconde même.
+- La CLI ne propose pas d'option d'attente. Si vous écrivez un script, bouclez vous-même sur `nimbus services status 123` jusqu'à la stabilisation.
+- Sur une cible edge, le bouton affiche `Démarrer / Arrêter` désactivé et le motif `Le Worker Cloudflare est serverless. Il ne se démarre ni ne s’arrête manuellement.` apparaît en infobulle. Pour économiser ou figer un site edge, utilisez plutôt le planning expliqué dans la page [Programmer la disponibilité](/plateforme/disponibilite).
+- Arrêter une application ne la supprime pas : sa configuration, ses variables et son dépôt restent en place, et vous pouvez la rallumer à tout moment.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| 400 `id invalide` | L'identifiant ne ressemble pas à un numéro de service | Reprenez l'identifiant dans l'adresse de la page ou avec `nimbus services list --json` |
+| 401 `unauthorized` | Vous n'êtes pas connecté | Reconnectez-vous |
+| 403 `accès refusé` | Votre rôle sur le projet ne donne pas le droit d'opération (superviseur, par exemple) | Demandez à un propriétaire ou à un membre d'agir, ou de vous confier le rôle adapté |
+| 404 `service introuvable` | Aucun service ne porte cet identifiant, ou vous n'y avez pas (ou plus) accès | Vérifiez l'identifiant et le projet courant |
+| 409 `ce projet n’a pas encore d’application déployée` | Le projet existe mais rien n'a été déployé | Lancez le premier déploiement, puis redemandez le démarrage ou l'arrêt |
+| 409 `le déploiement est absent ou appartient à un autre projet` | Le déploiement piloté par Nimbus est introuvable ou rattaché ailleurs | Vérifiez la cible de déploiement, puis prévenez l'équipe Nimbus si le problème persiste |
+| 409 `service supprimé ou en cours de suppression` | L'application est partie ou en train de partir | Attendez la fin de la suppression ou recréez le service |
+| 409 `suppression du service en cours` | Une suppression a commencé entre-temps | Attendez la fin de la suppression ou recréez le service |
+| Bouton masqué ou désactivé, sans message d'erreur, ou 403 en CLI | Rôle superviseur sans droit d'opération, ou cible edge | Demandez à un propriétaire ou à un membre d'agir, ou vérifiez la cible de déploiement |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur l'identifiant de l'application (`123`) et le sens souhaité (démarrer ou arrêter). Attendez sa réponse explicite : éteindre une application la rend indisponible.
+2. Vérifiez d'abord l'état avec `nimbus services status 123 --json` pour éviter une opération inutile.
+3. Lancez `nimbus services start 123` ou `nimbus services stop 123`, puis constatez avec `nimbus services status 123 --json` jusqu'à disparition de `power_pending`.
+4. Si la réponse est 409 avec un projet jamais déployé, annoncez qu'il faut d'abord déployer et demandez comment procéder.
+5. N'annoncez jamais le succès sur le seul message d'acceptation : seul l'état stabilisé prouve l'effet.
+
+## Voir aussi
+
+- [Lire l'état de votre application](/plateforme/etats)
+- [Programmer la disponibilité](/plateforme/disponibilite)
+- [Redéployer votre application](/plateforme/redeployer)

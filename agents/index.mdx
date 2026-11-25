@@ -1,0 +1,128 @@
+---
+title: Déroulé complet d'un agent
+description: Installez la CLI, connectez-vous, choisissez une cible et déployez une application pas à pas.
+keywords: [agent, CLI, déploiement, cible, diagnostic, installation, connexion]
+---
+
+Vous êtes un agent et vous pilotez Nimbus pour le compte d'un humain. Vous enchaînez les étapes ci-dessous dans l'ordre. Vous secondez l'humain : vous agissez en CLI, il valide dans le navigateur aux points d'arrêt.
+
+## Avant de commencer
+
+Lisez d'abord [les règles](/agents/regles) : elles disent quand demander un accord. Vérifiez que la CLI est installée avec `nimbus --version`. Si elle manque, suivez [l'installation de la CLI](/cli/installation), avec l'accord de l'humain, puis revenez ici. Vérifiez aussi `git --version` et `jq --version`. Demandez à l'humain le nom de son dépôt, son framework et la cible de déploiement qu'il vise. Si l'humain hésite sur la cible, recommandez `k3s-oracle` par défaut.
+
+## Déroulé
+
+<Steps>
+<Step title="Connecter la CLI">
+Lancez la connexion sans attendre la validation pour afficher le lien à l'humain.
+
+```bash
+nimbus auth login --no-wait --json
+```
+
+Elle renvoie un lien et un code à valider dans le navigateur. Demandez à l'humain d'ouvrir le lien et de valider. Une fois la validation faite, lancez toujours la commande suivante : elle termine la connexion et enregistre la session. Si la demande a expiré ou si le terminal a été fermé, elle réaffiche la demande en attente au lieu d'en créer une autre.
+
+```bash
+nimbus auth login --resume --json
+```
+
+Elle renvoie la session enregistrée. Vérifiez ensuite votre identité.
+
+```bash
+nimbus auth whoami --json
+```
+
+Elle renvoie votre identifiant et vos rôles.
+</Step>
+<Step title="Vérifier le jeton de dépôt">
+Contrôlez que le jeton d'accès au dépôt est enregistré et valide.
+
+```bash
+nimbus pat status --json
+```
+
+Elle renvoie l'état du jeton et son expiration. Si le jeton est absent ou expiré, demandez à l'humain d'en créer un en suivant [Relier GitLab](/demarrer/gitlab) et de l'écrire lui-même dans un fichier privé hors du dépôt Git. Vous n'ouvrez pas ce fichier : vous donnez seulement son chemin à la commande.
+
+```bash
+nimbus pat set --token-file <FICHIER-JETON> --expires-at <AAAA-MM-JJ> --yes --json
+```
+
+Ici `<FICHIER-JETON>` désigne le fichier privé que l'humain a rempli lui-même et `<AAAA-MM-JJ>` son échéance. La commande confirme l'enregistrement et exige l'accord explicite de l'humain car elle remplace le jeton stocké.
+</Step>
+<Step title="Choisir la cible">
+Listez les cibles disponibles avant tout déploiement.
+
+```bash
+nimbus targets list --json
+```
+
+Elle renvoie la liste des cibles avec leur libellé et leur usage recommandé. Recommandez `k3s-oracle` (libellé **On premise**, toujours allumé) par défaut. La cible `aks` est souvent éteinte et convient aux charges mutualisées. La cible `cloudflare` (edge) convient aux sites statiques et aux applications monopages. Un VPS `vps-...` convient quand l'humain veut son propre serveur. Passez toujours `--cluster-id` explicitement à chaque déploiement et ne vous fiez jamais à la cible choisie par défaut par le serveur.
+</Step>
+<Step title="Préparer le code">
+Placez-vous dans un clone du dépôt source, sur la branche de travail habituelle, jamais sur la branche de déploiement générée. Retrouvez l'identifiant du dépôt avec `nimbus gitlab repositories --json` (champ `id`), celui du groupe de création avec `nimbus gitlab namespaces --json` (champ `id`). Choisissez le framework en comparant les fichiers du dépôt au tableau de [Frameworks](/plateforme/frameworks), et vérifiez le port et l'adresse d'écoute avec [Préparer son dépôt](/plateforme/preparer-son-depot). Si rien ne correspond, suivez [Déployer n'importe quelle autre application](/parcours/autre-application). Vérifiez que le code est poussé et que la révision est stable, car toute modification entre l'examen et le déploiement invalide la proposition IA.
+</Step>
+<Step title="Déployer">
+Pour un dépôt qui existe déjà, déployez-le avec son identifiant de dépôt et un `--cluster-id` explicite. Ici `123` désigne l'identifiant GitLab du dépôt relevé à l'étape précédente et `go` le framework de la liste officielle.
+
+```bash
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle --json
+```
+
+Elle renvoie le projet créé et lance le déploiement. Pour un dépôt neuf, créez d'abord le projet en précisant le groupe de création, puis poussez le code dans le dépôt créé en suivant [Créer un nouveau dépôt](/parcours/nouveau-depot), et lancez enfin le `configure` ci-dessus. Ici `12` désigne l'identifiant du groupe GitLab relevé à l'étape de préparation.
+
+```bash
+nimbus services create --name mon-appli --framework go --cluster-id k3s-oracle --namespace-id 12 --json
+```
+
+Elle renvoie le projet à l'état de préparation, sans déploiement. Si le dépôt n'est pris en charge par aucun framework officiel, suivez la recette « Générer avec l'IA » des [recettes](/agents/recettes) et faites valider le plan par l'humain avant de déployer. Si vous ne savez pas quel chemin prendre, suivez [déployer une autre application](/parcours/autre-application) pour choisir votre parcours selon votre cas.
+</Step>
+<Step title="Vérifier l'URL">
+Contrôlez l'état du service après le déploiement. Ici `123` désigne l'identifiant du service rendu par la commande de création.
+
+```bash
+nimbus services status 123 --json
+```
+
+Elle renvoie l'état courant du service. Lisez ensuite l'adresse HTTP publique, disponible dès le premier déploiement.
+
+```bash
+nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'
+```
+
+Elle renvoie l'adresse publique de l'application. La commande `services gateway get 123 --json` ne sert qu'à vérifier la passerelle quand elle est activée (HTTPS, CORS, débit, taille) : si l'adresse obtenue ne répond pas en HTTPS, suivez [publier votre application en HTTPS](/plateforme/url-et-passerelle). Ouvrez l'URL et demandez à l'humain de confirmer que l'application s'affiche comme attendu.
+</Step>
+<Step title="Diagnostiquer">
+Si le déploiement échoue, lisez le diagnostic puis le pipeline, sans relancer aveuglément.
+
+```bash
+nimbus services deployment-failure 123 --json
+```
+
+Elle renvoie le détail du dernier échec connu ou rien s'il n'y en a aucun. Complétez avec le pipeline GitLab lié au service.
+
+```bash
+nimbus services pipeline 123 --json
+```
+
+Elle renvoie le statut du pipeline et son URL web. Transmettez le motif à l'humain avec l'étape concernée et proposez une correction précise.
+</Step>
+</Steps>
+
+## Arrêts obligatoires
+
+Vous marquez un arrêt et vous attendez l'humain dans chaque cas suivant.
+
+1. Connexion dans le navigateur : l'humain doit ouvrir le lien et valider le code lui-même.
+2. Commande root sur un VPS : après l'accord explicite de l'humain, transmettez la commande de rattachement par `ssh` sans l'afficher, ou faites-la exécuter par l'humain lui-même. Supprimez ensuite le fichier généré, car il contient un jeton personnel.
+3. Action destructive : tout `--yes`, toute suppression et tout changement de cible d'une application déployée exigent l'accord explicite de l'humain.
+4. Plan généré par IA : l'humain doit examiner la proposition puis approuver avant tout déploiement.
+
+## Secrets et fichiers
+
+Ne lisez ni n'affichez jamais une valeur de secret. Passez les secrets par fichier avec `--value-file`, `--token-file` ou `--dotenv-file`, écrivez les réponses brutes avec `--output` vers un fichier et supprimez le fichier de rattachement après usage. Les crédits et les notifications se pilotent en CLI comme dans l'interface : lisez avec `nimbus credits get`, `nimbus services credits get 123` et `nimbus notifications list`, et ne modifiez (engagement, limites, allocations) qu'après accord explicite. Suivez la recette « Crédits et notifications » des [recettes](/agents/recettes).
+
+## Voir aussi
+
+- [Règles pour les agents](/agents/regles)
+- [Recettes de commandes](/agents/recettes)
+- [Dépannage](/depannage/index)

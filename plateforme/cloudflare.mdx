@@ -1,0 +1,115 @@
+---
+title: "Publier un site statique sur Cloudflare"
+description: "Déployez votre site statique ou SPA sur la cible edge Cloudflare, sans serveur à gérer."
+keywords: ["cloudflare", "edge", "statique", "SPA", "worker", "VITE"]
+---
+
+## En bref
+
+Publiez votre site statique ou SPA sur le réseau edge Cloudflare plutôt que sur Kubernetes.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Assistant **Nouveau projet** et fiche du projet (**Cible de déploiement**) | `nimbus services create`, `nimbus services redeploy`, `nimbus services status`, `nimbus targets list` | Créer : Maintainer du groupe GitLab ; configurer : propriétaire ou admin ; redéployer : membre ou propriétaire ; lister : tout connecté | Après le déploiement, en quelques minutes | Oui, en reconfigurant le service |
+
+## Avant de commencer
+
+- Votre projet utilise `static` (**Site statique**) ou `spa` (**Application monopage (SPA)**) : un framework avec serveur ne convient pas.
+- La cible `cloudflare` (`Cloudflare (edge)`) se vérifie avec `nimbus targets list --json`.
+- La cible edge ne propose ni variables d'exécution, ni base managée, ni logs, ni identité applicative : intégrez toute configuration au build.
+- Vous êtes connecté : `nimbus auth whoami` répond sans erreur.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Choisissez la cible edge">
+Dans **Projets**, cliquez **Nouveau projet** (ou ouvrez un projet en développement). Dans **Préparer le projet**, choisissez **Cloudflare (edge)** dans **Cible de déploiement**. La cible n'apparaît que pour `static` et `spa`.
+</Step>
+<Step title="Lancez le déploiement">
+Cliquez sur **Continuer** jusqu'à **Vérifier le projet**, puis **Déployer l'application** (ou **Déployer** sur la fiche d'un projet en développement). La fiche affiche d'abord **Non publié** avec `Aucun déploiement edge publié.`.
+</Step>
+<Step title="Vérifiez la publication">
+Attendez `Déploiement publié sur Cloudflare.` : la fiche porte ensuite le badge **Edge** avec l'URL publique.
+</Step>
+<Step title="Intégrez vos variables au build">
+Sur un service edge, l'entrée **Réseau** reste indisponible (`La passerelle Kubernetes est indisponible sur Cloudflare.`) : aucun réglage passerelle ne s'applique. Écrivez vos valeurs dans un fichier `.env.production` à la racine du dépôt, avec une variable par ligne et le préfixe `VITE_*`, sans secret. Versionnez ce fichier, puis reconstruisez et redéployez : toute modification exige une reconstruction. Le détail figure dans [Gérer les variables d'environnement](/plateforme/variables).
+</Step>
+<Step title="Branchez le front à son API dans le bon ordre">
+Si votre site appelle une API, déployez l'API d'abord sur `k3s-oracle` : activez sa passerelle pour obtenir son adresse en `https`, puis autorisez l'origine de votre front dans ses origines CORS. Un front servi en HTTPS ne peut pas appeler une API en HTTP, car le navigateur refuse l'appel. Écrivez ensuite l'adresse de l'API dans `.env.production`, par exemple `VITE_API_URL=https://<URL-DE-VOTRE-API>` où `<URL-DE-VOTRE-API>` est l'**Adresse publique** lue dans l'onglet **Réseau** de l'API, puis redéployez le front.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les cibles disponibles">
+```sh
+nimbus targets list --json
+```
+Elle liste les cibles, dont `cloudflare` (type `edge`, recommandée pour `static` et `spa`).
+</Step>
+<Step title="Créez le service sur la cible edge">
+```sh
+nimbus services create --namespace-id 12 --name mon-site --framework spa --cluster-id cloudflare
+```
+`12` est le groupe GitLab (`nimbus gitlab namespaces --json`), `mon-site` le nom du site. `--framework` vaut `static` ou `spa`, `--cluster-id` vaut `cloudflare`. Le service est créé en développement, sans déploiement.
+</Step>
+<Step title="Lancez le premier déploiement">
+```sh
+nimbus services configure --repository-id 123 --framework spa --cluster-id cloudflare
+```
+Poussez d'abord votre code, puis lancez le premier déploiement (`123` est l'identifiant du service) : la commande attend le pipeline, qui publie le site.
+</Step>
+<Step title="Vérifiez la publication">
+```sh
+nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'
+```
+Elle renvoie l'adresse du site, remplie quand le déploiement est publié. Ici, `123` est l'identifiant du service. La commande `nimbus services status 123 --json` ne renvoie aucune URL.
+</Step>
+</Steps>
+
+<Note>Pas de réglage réseau sur l'edge : les commandes `gateway get`, `set` et `delete` sont prévues pour Kubernetes.</Note>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Après publication, la fiche quitte **Non publié** et affiche l'URL publique (lisez-la en CLI avec `nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'`).
+- Votre site répond en HTTPS sans passerelle à activer.
+
+## Limites
+
+- Seuls `static` et `spa` : un framework avec serveur est refusé.
+- Ni variables d'exécution, ni base managée, ni logs, ni métriques Kubernetes, ni identité applicative, ni passerelle Kubernetes, ni démarrage manuel (Worker serverless).
+- Les valeurs de configuration passent par des variables `VITE_*` intégrées au build : toute modification exige une reconstruction.
+- Un front en HTTPS ne peut appeler qu'une API en HTTPS : activez la passerelle de l'API et déclarez l'origine du front dans ses origines CORS avant de figer l'adresse dans le build du front.
+- L'hébergement edge ne coûte rien (coût `0` affiché).
+- Aucun réglage Cloudflare exposé (ni WAF, ni cache, ni certificat, ni domaine personnalisé), ni dans l'interface ni en CLI.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `La passerelle Kubernetes est indisponible sur Cloudflare.` | Service sur la cible edge | Aucun réglage passerelle ne s'applique sur l'edge |
+| `Aucun déploiement edge publié.` | Aucun déploiement publié sur ce service | Poussez le code, puis lancez le déploiement |
+| `framework non supporté sur la cible edge : seuls static et spa peuvent être déployés sur Cloudflare` | Framework serveur vers l'edge (`framework_not_supported_on_edge`, 400) | Recréez le service avec `static` ou `spa`, ou choisissez une cible Kubernetes |
+| `unsupported_on_edge` (409) | Opération sans objet sur l'edge (variables, base, logs, démarrage) | Intégrez la valeur au build (`VITE_*`) ou changez de cible |
+| `les variables d'environnement d'exécution n'existent pas sur la cible edge : intégrez vos valeurs au build frontend (VITE_*)` | Ajout de variables d'exécution sur l'edge | Déclarez une variable `VITE_*`, reconstruisez et redéployez |
+
+## Pour un agent
+
+1. Demandez le framework et confirmez `static` ou `spa`, et attendez la réponse.
+2. Vérifiez la cible (`targets list --json`) et imposez `--cluster-id cloudflare` à la création.
+3. Poussez le code, lancez le premier déploiement avec `nimbus services configure --repository-id 123 --framework spa --cluster-id cloudflare`, puis constatez l'adresse avec `nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'`.
+4. N'appelez ni `gateway set`, ni les commandes de variables, base, logs ou identité : transmettez les valeurs comme variables `VITE_*` au build.
+
+## Voir aussi
+
+- [Passer votre application en HTTPS avec la passerelle](/plateforme/url-et-passerelle)
+- [Choisir une cible de déploiement](/plateforme/cibles)
+- [Gérer les variables d'environnement](/plateforme/variables)

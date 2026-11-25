@@ -1,0 +1,113 @@
+---
+title: "Messages d'erreur : table de correspondance"
+description: "Retrouvez chaque message d'erreur exact de Nimbus, sa cause et le geste qui répare, domaine par domaine."
+keywords: ["erreur", "message d'erreur", "code erreur", "403", "404", "429", "503", "diagnostic"]
+---
+
+## Comment utiliser cette page
+
+Cherchez dans cette page le message exact que vous voyez (copiez-le tel quel) : chaque ligne donne la cause et le geste qui répare.
+
+<Note>Les messages entre guillemets sont reproduits à l'identique, coquilles comprises. Si votre message n'apparaît pas ici, partez de l'arbre de décision de la page [Dépanner](/depannage/index).</Note>
+
+## Journaux, santé et ressources
+
+Référence : [Journaux](/plateforme/logs), [Santé et ressources](/plateforme/sante-et-ressources).
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Paramètre invalide.` (code `invalid_parameter`) | Fenêtre, limite, filtre, niveau ou composant hors bornes | Reprenez une fenêtre parmi `15m`, `1h`, `6h`, `24h` (journaux) ou `1h`, `6h`, `24h`, `7d` (ressources), une limite entre 1 et 5000, un niveau parmi `error`, `warn`, `info`, `debug` |
+| `Session expirée, reconnectez-vous.` (code `unauthenticated`) | Session de 24 h terminée | Reconnectez-vous, puis relancez votre lecture |
+| `Vous n'avez pas accès à ce projet.` (code `forbidden`) | Vous n'êtes pas membre du projet | Demandez à un propriétaire de vous ajouter, ou vérifiez l'identifiant du service |
+| `Le projet est en cours de création.` (code `service_not_ready`) | Le service n'est pas encore déployé | Attendez la fin du déploiement, puis relisez |
+| `La requête a pris trop de temps. Essayez une période plus courte.` (code `upstream_timeout`) | Fenêtre trop large pour le backend | Réduisez la période et réessayez |
+| `impossible de récupérer les logs` | L'ancienne commande `nimbus services logs` (route `/api/services/{id}/logs`) est injoignable | Réessayez avec `nimbus services observability logs`, qui suit la route `/api/v1` |
+| `État indisponible.` (panneau **Santé**) | La plateforme ne répond pas à la lecture | Cliquez sur **Actualiser la santé**, puis consultez la [santé de la plateforme](/plateforme/sante-et-ressources#sante-de-la-plateforme-admin) si le problème dure |
+
+## Adresse publique : saine mais 404 ou 502
+
+Référence : [Passerelle](/plateforme/url-et-passerelle), [Santé et ressources](/plateforme/sante-et-ressources).
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `404` sur l'adresse de l'application alors que la santé dit **Sain** | La route demandée n'existe pas dans votre code | Vérifiez le chemin dans votre code et rouvrez l'URL exacte |
+| `502` sur l'adresse de l'application alors que la santé dit **Sain** | L'application n'écoute pas où la plateforme l'attend (mauvais port, écoute sur `localhost` au lieu de `0.0.0.0`), ou un déploiement est en cours | Vérifiez le port déclaré dans le dépôt, l'écoute sur `0.0.0.0`, puis `nimbus services status 123 --json` pour attendre la fin du déploiement |
+
+N'activez pas la gateway pour corriger ces deux cas : l'adresse HTTP répond déjà sans gateway, et l'erreur reste identique avec gateway.
+
+## Pipeline et diagnostic de déploiement
+
+Référence : [Échecs de déploiement](/plateforme/echecs-de-deploiement).
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Aucun échec depuis le dernier déploiement réussi.` | Aucun échec à diagnostiquer | Ne réparez rien : relisez après votre prochain déploiement si besoin |
+| `diagnostic de déploiement indisponible` | Le stockage du diagnostic est injoignable | Attendez une minute et actualisez ; si le message persiste, prévenez l'équipe Nimbus |
+| `Configurez votre jeton GitLab dans vos paramètres pour consulter le pipeline.` | Votre jeton GitLab manque | Enregistrez votre jeton GitLab, puis rechargez |
+| `Votre jeton GitLab ne permet pas de consulter ce pipeline.` | Votre jeton est refusé par GitLab | Vérifiez les droits de votre jeton sur le dépôt, puis réessayez |
+| `impossible de joindre GitLab` | GitLab est injoignable | Réessayez dans quelques minutes ; le problème est côté GitLab |
+| `impossible de lire le pipeline GitLab` | GitLab répond mais le pipeline est illisible | Vérifiez que le dépôt et la branche de déploiement existent toujours |
+| `Diagnostic partiel : …` (panneau) | Une source (GitLab, ArgoCD ou cluster) manquait pendant l'analyse | Vérifiez l'étape incriminée directement dans GitLab avant de conclure |
+
+## Dépendances et analyse de l'image
+
+Référence : [Dépendances et image](/plateforme/dependances-et-image).
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `détection des dépendances indisponible` | Le service d'analyse est injoignable | Attendez une minute, cliquez sur **Actualiser les dépendances**, puis prévenez l'équipe Nimbus si le message persiste |
+| `Déploiement bloqué` (statut du panneau) | Une faille critique avec correctif disponible est dans l'image | Mettez à jour la dépendance concernée et redéployez |
+| `Votre accès au projet ou votre jeton GitLab ne permet pas de consulter l’analyse.` | Jeton GitLab manquant ou refusé | Enregistrez un jeton GitLab valide, puis cliquez sur **Réessayer l’analyse** |
+| `Votre session a expiré. Reconnectez-vous pour consulter l’analyse.` | Session de 24 h terminée | Reconnectez-vous, puis rechargez la page |
+| `L’analyse n’est pas disponible pour ce projet ou cette version de Nimbus.` | Pas d'analyse pour ce projet | Déployez d'abord l'application, puis rouvrez le panneau |
+| `Impossible de consulter l’analyse de l’image. Réessayez dans quelques instants.` | Échec ponctuel de lecture | Attendez et cliquez sur **Actualiser l’analyse** |
+| `impossible de lire l'analyse de l'image dans GitLab` (CLI) | GitLab est injoignable | Réessayez dans quelques minutes |
+
+## Alertes Discord
+
+Référence : [Alertes Discord](/plateforme/alertes-discord).
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `URL de webhook Discord invalide : attendu https://discord.com/api/webhooks/<id>/<jeton>` | L'URL ne vient pas d'un webhook Discord | Dans Discord, suivez Paramètres du salon → Intégrations → Webhooks → Nouveau webhook → **Copier l’URL du webhook**, puis collez l'URL obtenue |
+| `aucun webhook Discord n'est enregistré pour ce projet` | Aucune alerte configurée | Enregistrez d'abord le webhook avec **Enregistrer** ou `nimbus services discord-alerts set` |
+| `un message de test vient d'être envoyé : réessayez dans quelques secondes` | Cooldown de 10 secondes entre deux tests | Attendez la fin de **Réessayer dans `{n}` s**, puis renvoyez le test |
+| `le webhook Discord est désactivé : enregistrez un nouveau webhook avant de le tester` | Discord rejette les messages (webhook supprimé côté Discord) | Enregistrez un nouveau webhook avec **Remplacer** ou `nimbus services discord-alerts set` |
+| `le webhook enregistré est illisible : enregistrez-le de nouveau` | Le secret stocké ne se déchiffre plus (réponse du test) | Enregistrez le webhook de nouveau |
+| `Le webhook enregistré est illisible : enregistrez-le de nouveau.` | Même cause, vue dans le panneau sous **Dernière alerte** | Enregistrez le webhook de nouveau |
+| `webhook Discord introuvable : il a été supprimé ou son jeton a changé` | Discord ne connaît plus le webhook (supprimé ou jeton changé), vu dans le panneau sous **Dernière alerte** | Enregistrez un nouveau webhook avec **Remplacer** ou `nimbus services discord-alerts set` |
+| `Discord est momentanément injoignable : réessayez plus tard` | Discord ne répond pas | Attendez quelques minutes : les alertes reprendront toutes seules |
+| `Ce webhook est désactivé. Enregistrez un nouveau webhook pour reprendre les alertes.` (panneau) | Même cause que la désactivation ci-dessus, vue côté interface | Enregistrez un nouveau webhook, l'ancien est irrécupérable |
+
+## Génération IA
+
+Référence : [Faire générer les fichiers de déploiement par l'IA](/plateforme/generation-ia).
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `génération IA du déploiement échouée, réessayez dans quelques instants` (code `503`) | Le fournisseur d'IA est indisponible | Attendez quelques instants, puis cliquez sur **Réessayer** ou relancez `nimbus services generation preview --repository-id 123 --output ./preview.json` |
+
+## Plateforme et accès
+
+Référence : [Santé et ressources](/plateforme/sante-et-ressources) pour la santé, [Connexion](/demarrer/connexion) pour la session.
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `Réservé aux administrateurs de Nimbus.` | L'action exige un administrateur de la plateforme | Demandez à l'équipe Nimbus, ne contournez pas |
+| `Votre session a expiré. Reconnectez-vous.` | Session de 24 h terminée (rencontré au pilotage d'AKS) | Reconnectez-vous, puis reprenez où vous étiez |
+| `La politique du projet est réservée aux administrateurs.` (panneau **Politique du projet**) | Votre rôle ne permet pas de gérer la politique du projet | Demandez à un administrateur de modifier la politique |
+| `Votre rôle permet de consulter les noms des variables, sans les modifier.` | Votre rôle donne la lecture seule | Demandez le droit de modification à un propriétaire |
+| `Cette variable est gérée par Nimbus.` | La clé est posée par la plateforme (`DB_*`, `DATABASE_URL`, `OIDC_*`) | Modifiez-la via PostgreSQL ou l'identité de l'application, pas dans les variables |
+| `Le VPS sélectionné est indisponible. Actualisez son état ou choisissez une autre cible.` | Le VPS n'est pas prêt | Cliquez sur **Actualiser** ou choisissez une autre cible ([VPS](/plateforme/vps)) |
+
+## Pour un agent
+
+1. Cherchez le message exact tel quel dans cette page avant d'interpréter : un mot différent (désactivé contre illisible, par exemple) change le geste.
+2. Quand le geste exige un humain (reconnecter, enregistrer un jeton, supprimer un webhook côté Discord), demandez et attendez : ne tentez pas de contourner.
+3. Après chaque geste de réparation, relancez la commande qui a produit l'erreur pour constater le résultat, et citez le nouveau message à l'utilisateur.
+
+## Voir aussi
+
+- [Dépanner : par où commencer](/depannage/index)
+- [Consulter les journaux](/plateforme/logs)
+- [Comprendre un échec de déploiement](/plateforme/echecs-de-deploiement)

@@ -1,0 +1,161 @@
+---
+title: "Choisir le framework de votre application"
+description: "Comprenez comment Nimbus détecte votre framework et choisissez entre site statique, framework officiel, modèle personnel ou génération IA."
+keywords: ["framework", "détection framework", "go", "nextjs", "nestjs", "springboot", "django", "static", "spa", "génération IA"]
+---
+
+## En bref
+
+Le framework décide comment Nimbus construit et lance votre dépôt. La détection vous propose le bon choix dès que vos fichiers correspondent.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Nouveau projet** > **Préparer le projet** > **Framework** | `nimbus frameworks list` | Tout utilisateur connecté avec accès au dépôt | À la configuration, avant le déploiement | Oui ; avant le déploiement librement, après déploiement avec une confirmation |
+
+## Avant de commencer
+
+- Repérez les marqueurs du tableau ci-dessous dans vos fichiers.
+- Vérifiez votre session, car toutes les commandes exigent une session active :
+```sh
+nimbus auth whoami
+```
+Elle confirme votre session.
+- Si aucun framework officiel ne correspond, vérifiez la génération IA :
+```sh
+nimbus services generation capabilities
+```
+Elle renvoie un objet avec le champ `enabled` et vos quotas. Si `enabled` vaut `false`, choisissez un framework officiel ou un modèle personnel.
+
+## Faire
+
+Nimbus reconnaît sept cas. Le tableau donne pour chacun les fichiers qui déclenchent la détection et le port écouté.
+
+| Framework | Fichiers détectés | Port écouté |
+| --- | --- | --- |
+| `go` | `go.mod` ou `go.work` | `8080` |
+| `nextjs` | `next.config.{js,ts,mjs,cjs}` ou `package.json` contenant `next` | `3000` |
+| `nestjs` | `package.json` contenant `@nestjs/core` | `3000` |
+| `springboot` | `pom.xml` ou `build.gradle` contenant `spring-boot` | `8080` |
+| `django` | `requirements.txt` ou `pyproject.toml` contenant `django` | `8000` |
+| `spa` | `package.json` plus `index.html` à la racine plus `vite` | `80` |
+| `static` | Aucun marqueur reconnu, site en HTML et CSS et JavaScript pur | `80` |
+
+Choisissez selon votre dépôt. Prenez `static` pour un site pur sans compilation, et `spa` pour une application Vite en précisant `output_dir`. Prenez un framework officiel quand votre dépôt correspond au tableau, avec le suffixe **Officiel** et le badge **Détecté**. FastAPI et Flask ne sont pas des frameworks natifs : aucun marqueur ne les détecte. Regardez d'abord si le catalogue officiel propose une recette pour votre pile avec `nimbus frameworks list --json`. Sinon, passez par la génération IA (`generated`). Prenez un modèle personnel quand vous avez enregistré vos fichiers, car la régénération réutilise votre recette sans appel IA. Sinon, la génération IA rédige une proposition à examiner puis approuver.
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez la création de projet">
+Cliquez sur **Nouveau projet**. À l'étape **Préparer le projet**, ouvrez le groupe **Framework**. Chaque recette officielle porte le suffixe **Officiel**.
+</Step>
+<Step title="Laissez la détection proposer">
+Pendant l'analyse, le champ affiche **Détection en cours…**. Le framework reconnu porte le badge **Détecté**. Gardez-le ou choisissez-en un autre.
+</Step>
+<Step title="Gérez le cas non pris en charge">
+Sinon, le message **Ce framework n’est pas pris en charge par Nimbus. Vous pouvez faire générer les fichiers de déploiement.** s'affiche avec le bouton **Générer avec l’IA**. Cliquez sur **Générer avec l’IA**. Dans le dialogue **Analyser le dépôt avec l’IA ?**, cliquez sur **Analyser le dépôt**. Examinez la **Proposition IA** onglet par onglet en cliquant sur **J’ai examiné ce fichier** pour chaque fichier. Cochez ensuite **J’ai examiné le Dockerfile, les commandes exécutables générées et leurs permissions dans la CI.**
+</Step>
+<Step title="Réutilisez vos fichiers si besoin">
+Si vous avez enregistré une recette, cliquez sur **Réutiliser mes fichiers** dans **Mes fichiers de déploiement**. Après une génération satisfaisante, cliquez sur **Enregistrer les fichiers IA** pour la conserver.
+</Step>
+<Step title="Lancez la suite">
+Cliquez sur **Continuer**, relisez le récapitulatif, puis cliquez sur **Déployer l’application**.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les recettes officielles publiées">
+```sh
+nimbus frameworks list --json
+```
+Elle renvoie les recettes officielles publiées par Nimbus, avec les champs `id`, `name`, `description` et `revision`. Le contenu du catalogue dépend de cette publication : une pile absente de la liste passe par la génération IA ci-dessous.
+</Step>
+<Step title="Déployez une recette officielle">
+```sh
+nimbus services configure --repository-id 123 --framework generated --official-framework-id <ID> --cluster-id k3s-oracle
+```
+`123` est l'identifiant GitLab de votre dépôt. `<ID>` est le champ `id` renvoyé par la commande précédente. Le moteur reste `generated`, avec la recette officielle à la place de la proposition IA : vous ne passez ni par `generation preview` ni par `generation approve`.
+</Step>
+<Step title="Vérifiez les capacités IA">
+```sh
+nimbus services generation capabilities
+```
+Elle renvoie `enabled`, les quotas `per_user_per_hour` et `concurrent`, la validité `review_ttl_seconds` (`1200`) et `private_recipes`.
+</Step>
+<Step title="Demandez une proposition IA">
+```sh
+nimbus services generation preview --repository-id 123 --output ./preview.json
+```
+`123` est l'identifiant GitLab de votre dépôt. Elle écrit `{proposal, review_token, source_revision, expires_at}` dans `./preview.json`. Pour réutiliser un modèle personnel, ajoutez `--template-id`, incompatible avec `--regenerate`.
+</Step>
+<Step title="Approuvez la proposition">
+Préparez `./plan.json` avec le plan exact :
+```json
+{
+  "repository_id": 123,
+  "framework": "generated",
+  "cluster_id": "<CLUSTER_ID>",
+  "worker": false,
+  "prepare_only": false
+}
+```
+`<CLUSTER_ID>` est votre cible de déploiement. Puis lancez l'approbation :
+```sh
+nimbus services generation approve --preview-token <TOKEN> --approved --input ./plan.json --output ./approval.json
+```
+`<TOKEN>` est le jeton HMAC du champ `review_token` de `./preview.json`. Elle écrit `{approval_token, expires_at}` dans `./approval.json`.
+</Step>
+<Step title="Déployez avec le jeton d'approbation">
+```sh
+nimbus services configure --repository-id 123 --framework generated --cluster-id k3s-oracle --generated-review-token <APPROVAL_TOKEN>
+```
+`<APPROVAL_TOKEN>` est le champ `approval_token` de `./approval.json`. Elle déploie le dépôt avec la proposition approuvée.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le champ **Framework** affiche le badge **Détecté** après une détection réussie, ou **Proposition IA** après une génération.
+- Le fichier `./preview.json` contient `proposal`, `review_token`, `source_revision` et `expires_at`, et `./approval.json` contient `approval_token` et `expires_at`.
+- En ligne, la fiche du service affiche ensuite le framework et l'URL publique.
+
+## Limites
+
+- La proposition expire après 20 minutes, car `review_ttl_seconds` vaut `1200`. Les corps sont limités à 4 Ko pour la prévisualisation et 160 Ko pour l'approbation.
+- L'analyse dure 120 secondes au plus. Ne relancez pas l'appel pendant ce délai.
+- Les quotas `per_user_per_hour` et `concurrent` limitent vos générations, et le dépassement répond `429` avec l'en-tête `Retry-After` qui indique le délai d'attente.
+- Pour `static` et `spa`, choisissez une cible de bord (`cloudflare`). Les autres frameworks se déploient sur Kubernetes. Changer de framework après déploiement redemande une confirmation.
+- Ne poussez aucun commit entre la prévisualisation et l'approbation, car toute révision invalide le jeton.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `ce framework est pris en charge par Nimbus ; utilisez sa configuration native` avec un code `422` | IA demandée pour un framework officiel | Choisissez le framework **Détecté** |
+| `recette générée personnelle introuvable` avec un code `404` | Valeur de `--template-id` inconnue | Vérifiez vos modèles dans **Mes fichiers de déploiement** |
+| `un framework officiel exige le moteur de déploiement generated` | `--official-framework-id` sans `--framework generated` | Ajoutez `--framework generated` à `services configure` |
+| `ce framework officiel n'est plus disponible ; choisissez une autre configuration` avec un code `409` | Recette retirée du catalogue après votre listage | Relancez `nimbus frameworks list --json` et choisissez une autre recette |
+| `les sources ont changé ; générer et examiner une nouvelle proposition` avec un code `409` | Commit poussé entre la prévisualisation et l'approbation | Relancez `generation preview`, puis approuvez le nouveau jeton |
+| `aperçu invalide ou expiré` avec un code `412` | Délai dépassé ou plan modifié | Relancez la prévisualisation sans modifier le plan |
+| `429` avec l'en-tête `Retry-After` | Quota atteint | Attendez le délai indiqué, puis relancez |
+| **Sélection manuelle requise pour ce dépôt.** | Aucun marqueur reconnu | Choisissez `static`, un framework officiel, ou cliquez sur **Générer avec l’IA** |
+
+## Pour un agent
+
+1. Demandez le dépôt, le framework pressenti et la cible, puis attendez la réponse.
+2. Listez les frameworks et vérifiez les capacités IA avant de proposer un choix.
+3. Demandez l'accord explicite avant toute prévisualisation IA, car elle consomme le quota.
+4. Constatez avec `./preview.json`, en particulier `review_token` et `expires_at`.
+5. Ne modifiez jamais le plan approuvé, car le serveur refuse tout écart.
+
+## Voir aussi
+
+- [Préparer son dépôt](/plateforme/preparer-son-depot)
+- [Générer avec l'IA](/plateforme/generation-ia)
+- [Réutiliser un modèle](/plateforme/modeles)

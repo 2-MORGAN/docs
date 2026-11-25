@@ -1,0 +1,128 @@
+---
+title: "Passer votre application en HTTPS avec la passerelle"
+description: "Votre application web a une adresse HTTP dès son premier déploiement. Activez la gateway pour passer en HTTPS et régler CORS, débit et taille des requêtes."
+keywords: ["gateway", "URL publique", "HTTP", "HTTPS", "CORS", "limitation de débit", "passerelle"]
+---
+
+## En bref
+
+Chaque application web reçoit une adresse HTTP dès son premier déploiement. La passerelle la publie en HTTPS avec des protections (CORS, débit, taille des requêtes).
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Configuration** > **Réseau** | `nimbus services gateway get`, `nimbus services gateway set`, `nimbus services gateway delete` | Lecture : tout membre ; modification : propriétaire ou administrateur | Après pipeline et synchronisation, en quelques minutes | Oui, à tout moment |
+
+Sans gateway, l'application reste accessible en HTTP simple. L'activer la publie en HTTPS, avec redirection automatique depuis HTTP.
+
+## Lire l'adresse HTTP de l'application
+
+L'adresse de toute application web se lit avec la commande suivante, où `123` est l'identifiant du service. Elle renvoie l'adresse HTTP sans gateway, et l'adresse HTTPS quand la gateway est active.
+
+```sh
+nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'
+```
+
+La commande `nimbus services gateway get 123 --json` ne donne l'adresse que quand la gateway est active (champ `url`, avec `"configured": true`). Sur la cible edge Cloudflare, elle est refusée. La commande `nimbus services status 123 --json` ne renvoie aucune URL.
+
+## Avant de commencer
+
+- Votre service est déployé et ce n'est pas un worker : l'entrée **Réseau** n'apparaît que pour les services web, et la passerelle est refusée aux workers sans URL publique.
+- Vous connaissez l'identifiant du service : il figure dans l'URL de la fiche (`/dashboard/services/123`).
+- Vous êtes connecté (`nimbus auth whoami` répond sans erreur) et aucune opération n'est en cours : attendez la fin du déploiement précédent.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau réseau">
+Sous **Configuration**, cliquez sur **Réseau** : le panneau **Gateway d'API** s'affiche.
+</Step>
+<Step title="Activez la passerelle">
+Cliquez sur **Activer la gateway** (**Mettre à jour la gateway** si elle est déjà active). Le message `Publication en cours : génération du déploiement, pipeline puis synchronisation. Cela peut prendre quelques minutes.` s'affiche, puis `Gateway appliquée. Le service est publié en HTTPS avec ces options.`.
+</Step>
+<Step title="Renseignez le CORS">
+Dans la section **CORS**, renseignez **Origines autorisées (une par ligne, 5 maximum)**, au format `https://hote` (par exemple `https://app.example.fr`) ; laissez le vide si aucun autre site n'appelle votre API. Dans **Méthodes autorisées**, choisissez **Lecture (GET, HEAD, OPTIONS)** ou **Complet (+ POST, PUT, PATCH, DELETE)** pour autoriser l'écriture. Cochez **Autoriser cookies et en-tête Authorization** seulement avec au moins une origine.
+</Step>
+<Step title="Réglez la protection">
+Dans **Protection**, réglez **Limitation de débit** puis **Taille maximale d'une requête**.
+</Step>
+<Step title="Appliquez ou désactivez">
+Cliquez sur **Mettre à jour la gateway**. Pour revenir en HTTP simple, cliquez sur **Désactiver** : le message `Gateway désactivée. Le service repasse en HTTP.` s'affiche.
+</Step>
+</Steps>
+
+<Note>En lecture seule, les champs sont désactivés et les boutons masqués : `Vous pouvez consulter la gateway. Sa modification est réservée aux propriétaires et administrateurs.`.</Note>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Consultez la configuration actuelle">
+```sh
+nimbus services gateway get 123
+```
+Elle affiche la configuration, dont le champ `url` quand la passerelle est active.
+</Step>
+<Step title="Activez HTTPS seul, sans CORS">
+```sh
+nimbus services gateway set 123 --json
+```
+Sans option, la commande active HTTPS avec les réglages par défaut : méthodes `read`, requêtes de `10` Mo au plus, CORS et limitation de débit désactivés. Elle renvoie la configuration appliquée. N'ajoutez des options CORS que si un autre site appelle votre API.
+</Step>
+<Step title="Activez la passerelle avec vos réglages">
+```sh
+nimbus services gateway set 123 --cors-origins https://app.example.fr --cors-methods full --cors-credentials --rate-limit 10 --max-body-mb 10
+```
+Ici, `--cors-origins` déclare le domaine du frontend, `--cors-methods full` autorise l'écriture, `--cors-credentials` les cookies et `Authorization`, `--rate-limit 10` et `--max-body-mb 10` règlent la protection. Elle renvoie la configuration appliquée.
+</Step>
+<Step title="Désactivez la passerelle">
+```sh
+nimbus services gateway delete 123 --yes
+```
+L'option `--yes` confirme sans demander. Le service repasse en HTTP simple.
+</Step>
+</Steps>
+
+<Warning>La commande `set` remplace toute la configuration : toute option omise reprend son défaut.</Warning>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- La section **Adresse publique** affiche **Gateway active** et une URL en `https://...` quand la passerelle est active (en CLI, `nimbus services gateway get 123 --json` renvoie `"configured": true` et `"url"` rempli), ou **Non configurée** sans passerelle. Sans passerelle, l'application reste joignable sur son adresse HTTP, lue avec `nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'`.
+
+## Limites
+
+- 5 origines CORS au maximum, au format `https://hote` avec port éventuel, sans chemin autre que `/`, sans espace ni guillemet, sans doublon.
+- Les méthodes valent `read` ou `full` en CLI. Les identifiants CORS exigent au moins une origine.
+- Débit : `0` (désactivé), `10` ou `50` requêtes/s par IP. Requête maximale : `1`, `10` ou `50` Mo.
+- Ni domaine personnalisé, ni choix du certificat, ni WAF, ni cache, ni réglage TLS : certificat et redirection HTTPS automatiques.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `5 origines au maximum.` | Trop d'origines saisies | Gardez 5 origines au plus |
+| `Origine invalide : https://... (attendu : https://hôte).` | Origine mal formée | Corrigez l'origine au format `https://hote`, sans chemin ni espace |
+| `Les identifiants CORS demandent au moins une origine.` | Identifiants cochés sans origine | Saisissez une origine ou décochez les identifiants |
+| `Un worker n'a pas d'URL : la gateway n'est pas disponible.` | Worker sans URL publique | Publiez un service web |
+| `désactivez d'abord l'identité de l'application : sa connexion exige HTTPS` | Identité encore active | Désactivez l'identité, puis réessayez |
+| `impossible d'analyser le framework GitLab` | Dépôt illisible | Vérifiez le dépôt, puis relancez |
+
+En CLI, les trois premiers refus arrivent avec le préfixe `configuration gateway invalide: ` (code 422).
+
+## Pour un agent
+
+1. Demandez l'identifiant du service, les origines du frontend et le besoin en écriture. Attendez ici la réponse.
+2. Lisez l'adresse avec `nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'`. Constatez la gateway avec `nimbus services gateway get 123`, et après `set` avec `get --json` : `"configured": true` et `"url"` rempli.
+3. Demandez l'accord explicite avant `set` ou `delete` : l'opération redéploie et prend plusieurs minutes.
+4. Renvoyez toujours la configuration complète avec `set` : toute option omise reprend son défaut.
+
+## Voir aussi
+
+- [Activer la connexion de votre application](/plateforme/identite-application)
+- [Publier un site statique sur Cloudflare](/plateforme/cloudflare)
+- [Comprendre les messages d'erreur](/depannage/messages)

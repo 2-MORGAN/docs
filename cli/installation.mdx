@@ -1,0 +1,137 @@
+---
+title: "Installer la CLI Nimbus"
+description: "Installez la CLI Nimbus sur macOS, Linux ou Windows avec le script officiel ou l'archive, puis vérifiez votre installation."
+keywords: ["CLI Nimbus", "installer nimbus", "installation CLI", "binaire", "macOS", "Linux", "Windows"]
+---
+
+## En bref
+
+Vous pilotez Nimbus depuis votre terminal avec la commande `nimbus`. Vous l'installez en une commande grâce au script officiel, ou à la main depuis l'archive de la dernière version. Vous n'avez besoin ni de droits administrateur ni du langage Go pour l'utiliser au quotidien.
+
+<Warning>
+Dépend de la première publication : les liens de téléchargement ci-dessous n'existent que lorsque l'équipe Nimbus publie la première version de la CLI. Tant que la page des versions est vide, vous ne pouvez pas encore installer la CLI par ce moyen.
+</Warning>
+
+## Avant de commencer
+
+Vous avez besoin d'un poste macOS, Linux ou Windows récent, sur processeur `arm64` ou `amd64`. Vous pouvez vérifier l'architecture de votre machine, et tout le reste se fait sans privilège particulier.
+
+- Vous téléchargez depuis `github.com`, donc votre connexion sortante doit l'autoriser.
+- Le script et la méthode manuelle installent le binaire dans `~/.local/bin`, sans `sudo` et sans toucher au système.
+- Votre variable `PATH` doit inclure `~/.local/bin` pour retrouver `nimbus`. Vous la contrôlez avec `echo $PATH`.
+- Sur macOS et Linux, vous avez besoin de `curl` et `tar`, déjà présents sur la plupart des postes. Sur Windows, vous utilisez PowerShell.
+
+Le nom de l'archive suit toujours le même motif : `nimbus_<os>_<arch>.tar.gz`. La valeur `<os>` vaut `darwin` pour macOS ou `linux` pour Linux, et vous l'obtenez en connaissant votre système d'exploitation. La valeur `<arch>` vaut `arm64` pour les puces ARM récentes ou `amd64` pour les processeurs Intel et AMD classiques, et vous l'obtenez avec la documentation de votre machine. Sur Windows, l'archive est un fichier `nimbus_windows_<arch>.zip` avec la même logique pour `<arch>`. Un fichier `SHA256SUMS` accompagne chaque version et vous sert à contrôler le téléchargement.
+
+## Installer
+
+<Tabs>
+<Tab title="macOS et Linux (script)">
+
+<Steps>
+<Step title="Lancez le script officiel">
+```sh
+curl -fsSL https://github.com/2-MORGAN/docs/releases/latest/download/install.sh | sh
+```
+Le script télécharge l'archive adaptée à votre machine et place le binaire dans `~/.local/bin`. Il ne demande aucun mot de passe.
+</Step>
+<Step title="Ajoutez le dossier à votre PATH">
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+Cette commande rend `nimbus` disponible dans le terminal courant. Ajoutez la même ligne à votre `~/.zshrc` ou `~/.bashrc` pour la conserver à chaque ouverture.
+</Step>
+<Step title="Vérifiez que la commande répond">
+```sh
+nimbus --help
+```
+Cette commande affiche l'aide générale. Si elle s'affiche, votre installation est terminée.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="Windows (script)">
+
+<Steps>
+<Step title="Téléchargez le script officiel">
+```powershell
+iwr https://github.com/2-MORGAN/docs/releases/latest/download/install.ps1 -OutFile install.ps1
+```
+Cette commande enregistre le script `install.ps1` dans votre dossier courant.
+</Step>
+<Step title="Exécutez le script">
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+Le script télécharge l'archive Windows adaptée et installe le binaire dans votre dossier local, sans droits administrateur.
+</Step>
+<Step title="Vérifiez que la commande répond">
+```powershell
+nimbus --help
+```
+Cette commande affiche l'aide générale. Si elle s'affiche, votre installation est terminée.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="Installation manuelle">
+
+<Steps>
+<Step title="Téléchargez l'archive et sa somme de contrôle">
+```sh
+curl -LO https://github.com/2-MORGAN/docs/releases/latest/download/nimbus_linux_amd64.tar.gz
+curl -LO https://github.com/2-MORGAN/docs/releases/latest/download/SHA256SUMS
+```
+La première commande télécharge le binaire compressé. La seconde télécharge le fichier `SHA256SUMS` qui certifie son contenu. Remplacez `linux_amd64` par votre couple `<os>_<arch>` si votre machine est différente.
+</Step>
+<Step title="Vérifiez l'intégrité de l'archive">
+```sh
+sha256sum -c SHA256SUMS
+```
+Cette commande compare l'archive à la somme publiée et affiche un statut `OK` en cas de succès. Si la vérification échoue, supprimez l'archive et téléchargez-la de nouveau au lieu de l'installer. Sur macOS, la commande `sha256sum` n'existe pas par défaut : utilisez `shasum -a 256 -c SHA256SUMS` à la place.
+</Step>
+<Step title="Installez le binaire dans votre dossier local">
+```sh
+mkdir -p ~/.local/bin
+tar -xzf nimbus_linux_amd64.tar.gz -C ~/.local/bin nimbus
+```
+La première commande crée le dossier de destination s'il manque. La seconde y dépose le binaire `nimbus`, avec le même nom d'archive adapté à votre machine.
+</Step>
+<Step title="Vérifiez que la commande répond">
+```sh
+nimbus --help
+```
+Cette commande affiche l'aide générale. Si elle s'affiche, votre installation est terminée.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier que tout fonctionne
+
+La commande suivante liste toutes les commandes disponibles au format JSON, sans session et sans réseau. Elle prouve que votre binaire est sain.
+
+```sh
+nimbus docs --commands | jq .
+```
+
+Elle affiche un long tableau JSON qui décrit chaque commande. Si `jq` n'est pas installé sur votre poste, lancez simplement `nimbus docs --commands` et vous obtenez le même contenu sans mise en forme. Vous pouvez aussi afficher la version installée avec `nimbus --version`. Quand ces deux commandes répondent, passez à la page /cli/connexion pour ouvrir votre session.
+
+## Go sert seulement à développer
+
+Vous n'avez pas besoin de Go pour utiliser Nimbus. Le langage Go sert uniquement à compiler la CLI depuis ses sources, ce qui concerne les personnes qui modifient son code. Dans ce cas, la commande `make build` produit le binaire puis `./bin/nimbus --help` vérifie le résultat. Pour tout usage normal, le binaire téléchargé suffit et vous pouvez ignorer ce paragraphe.
+
+## Si ça échoue
+
+| Message ou symptôme | Cause probable | Geste à faire |
+| --- | --- | --- |
+| `command not found` après l'installation | Votre `PATH` ignore `~/.local/bin` | Ajoutez `export PATH="$HOME/.local/bin:$PATH"` à votre shell puis rouvrez le terminal |
+| La vérification `sha256sum` affiche `FAILED` | Le téléchargement est incomplet ou corrompu | Supprimez l'archive, téléchargez-la de nouveau et revérifiez avant d'extraire |
+| La page des versions est vide ou le lien répond `404` | La première version n'est pas encore publiée | Attendez la publication ou demandez un binaire à l'équipe Nimbus |
+
+## Voir aussi
+
+- /cli/connexion : ouvrez votre session et enregistrez votre jeton GitLab.
+- /cli/conventions : apprenez les options, les fichiers et les codes de sortie communs.
+- /cli/commandes : explorez la référence complète des commandes.

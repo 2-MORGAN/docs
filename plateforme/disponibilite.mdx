@@ -1,0 +1,144 @@
+---
+title: "Programmer la disponibilité de votre application"
+description: "Éteignez votre application hors horaires avec un planning de disponibilité, rallumez-la temporairement et estimez vos économies."
+keywords: ["disponibilité", "planning d'activité", "réveil temporaire", "économies", "horaires"]
+---
+
+## En bref
+
+Vous programmez les heures où votre application fonctionne, et Nimbus l'éteint puis la rallume pour vous.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service > onglet **Disponibilité** | `nimbus services availability set 123 --input planning.json` | Lecture pour tout membre du projet, écriture avec le droit de pilotage (opérer) | Dans la minute, ou à la fin du réveil en cours | Oui, l'état actuel est conservé |
+
+## Avant de commencer
+
+- Votre application est déployée sur un cluster : sinon, l'écriture répond 409. Sur cible edge, l'onglet affiche un panneau d'indisponibilité, car le pilotage de l'état n'existe pas sur cette cible.
+- Vous êtes membre du projet avec le droit d'opérer, sinon l'interface reste en lecture seule.
+- Votre CLI est connectée (`nimbus auth whoami` répond sans erreur) et vous connaissez l'identifiant du service (`123` dans les exemples).
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez l'onglet Disponibilité">
+Ouvrez la page de votre service, onglet **Disponibilité** : le panneau affiche le titre **Disponibilité**, le sous-titre **Programmez les périodes d'activité de votre application.**, et un badge d'état.
+</Step>
+<Step title="Créez ou modifiez le planning">
+Cliquez sur **Configurer un planning**, ou sur **Modifier** si un planning existe, puis choisissez un modèle : **Toujours actif**, **Jours ouvrés**, **Horaires de cours** ou **Personnalisé**.
+</Step>
+<Step title="Réglez le fuseau et les plages">
+Dans **Fuseau horaire**, choisissez le fuseau de vos horaires, par exemple `Europe/Paris`. Dans **Plages d'activité**, réglez chaque **Plage N** avec son **Début** et sa **Fin**, ou choisissez **Fin de journée (24:00)** dans la liste **Fin**. Cliquez sur **Ajouter une plage** pour en créer une autre, dans la limite de 14. L'**Aperçu de la semaine** montre le résultat.
+</Step>
+<Step title="Enregistrez le planning">
+Cochez **Activer le planning dès l'enregistrement** pour l'appliquer aussitôt, puis cliquez sur **Enregistrer le planning**. La notice **Planning enregistré. Il sera pris en compte dans la minute, ou à la fin du réveil en cours.** confirme.
+</Step>
+<Step title="Rallumez temporairement si besoin">
+Hors horaires, cliquez sur **Allumer temporairement**. Choisissez **30 min**, **1 h**, **2 h** ou **Personnalisée** et saisissez la **Durée en minutes**. Cliquez sur **Demander le réveil** : la notice **Réveil demandé. Consultez l'état de l'application pour suivre son démarrage.** confirme. Pour l'interrompre, cliquez sur **Terminer le réveil** et confirmez.
+</Step>
+<Step title="Suspendez ou supprimez le scénario">
+Cliquez sur **Suspendre le planning** pour garder les horaires sans les appliquer, ou sur **Réactiver le planning** pour les réappliquer. En bas du panneau, **Supprimer le scénario** retire le planning après confirmation.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Consultez le scénario">
+```sh
+nimbus services availability get 123
+```
+Elle renvoie le scénario enregistré, ou indique qu'aucun scénario n'existe.
+</Step>
+<Step title="Préparez le fichier planning">
+Enregistrez le contenu suivant dans `planning.json` (`--input` attend un fichier ou `-`) :
+```json
+{
+  "enabled": true,
+  "timezone": "Europe/Paris",
+  "windows": [
+    {
+      "days": [1, 2, 3, 4, 5],
+      "start": "08:00",
+      "stop": "19:00"
+    }
+  ]
+}
+```
+Le champ `enabled` active le planning dès l'enregistrement, `timezone` donne le fuseau, et `windows` liste les plages : `days` en jours ISO (`1` pour lundi jusqu'à `7` pour dimanche), `start` et `stop` au format `HH:MM` (`24:00` autorisé pour la fin).
+</Step>
+<Step title="Appliquez le planning">
+```sh
+nimbus services availability set 123 --enabled=true --timezone Europe/Paris --input planning.json
+```
+Elle enregistre le scénario. Passez toujours `--timezone` et `--enabled`, sinon le fuseau repasse à `Europe/Paris` et le planning est réactivé. Avec `--enabled=false`, le planning est conservé sans être appliqué.
+</Step>
+<Step title="Demandez un réveil temporaire">
+```sh
+nimbus services availability wake 123 --duration-minutes 120
+```
+Elle allume l'application pour la durée choisie, puis rend la main au planning, ou remet l'application en veille sans planning actif. Pour interrompre, `wake-cancel` avec `--yes` :
+```sh
+nimbus services availability wake-cancel 123 --yes
+```
+</Step>
+<Step title="Estimez les économies">
+```sh
+nimbus services availability savings 123 --days 7
+```
+Elle chiffre le scénario enregistré, sur 7 jours par défaut. L'estimation n'existe que dans la CLI. Pour simuler sans enregistrer, utilisez `preview` avec `--input` au lieu de `set` :
+```sh
+nimbus services availability preview 123 --days 14 --input proposition.json
+```
+</Step>
+<Step title="Supprimez le scénario">
+```sh
+nimbus services availability delete 123 --yes
+```
+Elle retire le planning et le réveil éventuel. L'application conserve son état actuel.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le badge affiche **Actif**, **Suspendu**, **Gestion manuelle** ou **En pause pendant le réveil**, et la section **Prochaine échéance** annonce le prochain changement prévu.
+- En CLI, `nimbus services availability get 123` renvoie le scénario enregistré, et `nimbus services status 123` confirme le démarrage après un réveil.
+
+## Limites
+
+- Un scénario contient de 1 à 14 plages horaires, avec des jours de `1` (lundi) à `7` (dimanche) et des heures au format `HH:MM` (`24:00` autorisé pour la fin).
+- Un réveil dure de `1` à `1440` minutes.
+- L'estimation des économies porte sur 1 à 30 jours (7 par défaut), hors base PostgreSQL, et répond 503 quand le chiffrage est indisponible côté plateforme.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| 400 « corps de requête invalide », ou 422 sur le nombre de plages | `planning.json` mal formé, ou `windows` vide ou au-delà de 14 plages | Corrigez le JSON et gardez entre 1 et 14 plages |
+| 422 « fuseau horaire inconnu : ... » | Fuseau invalide | Choisissez un fuseau valide, par exemple `Europe/Paris` |
+| 422 « au moins un jour doit être sélectionné » ou « jour invalide... » | Jours mal réglés | Sélectionnez au moins un jour entre `1` et `7` |
+| 422 « l'heure de début et l'heure de fin doivent être différentes » | Début égal à la fin | Décalez le début ou la fin |
+| « Choisissez une durée entière de 1 à 1 440 minutes (24 heures). », ou 422 « la durée du réveil doit être comprise entre 1 minute et 24 heures » | Durée de réveil hors bornes | Relancez avec une durée entre `1` et `1440` minutes |
+| 409 « le pilotage de l'état (démarrer/arrêter) n'existe pas sur la cible edge : le Worker est serverless » | Scénario sur cible edge | Déployez sur un cluster pour utiliser les scénarios |
+| 404 « aucun réveil en cours » | Annulation sans réveil actif | Vérifiez l'état avant d'annuler |
+| 404 « aucun scénario de disponibilité pour ce service », ou 400 « days doit être un entier entre 1 et 30 » | Estimation impossible | Utilisez `preview` avec `--input`, avec `--days` entre `1` et `30` |
+| 503 « calcul du coût indisponible : Datadog n'est pas configuré » | Chiffrage indisponible côté plateforme | Si ce message s'affiche, demandez l'estimation à l'équipe Nimbus |
+
+## Pour un agent
+
+1. Demandez l'identifiant du service et les horaires souhaités (jours, début, fin, fuseau). Attendez ici la réponse.
+2. Consultez `nimbus services availability get 123`, puis écrivez le planning complet dans `planning.json` et appliquez-le avec `--enabled`, `--timezone` et `--input`.
+3. Demandez l'accord explicite avant `delete` ou `wake-cancel`, puis constatez avec `get` et `nimbus services status 123`. Pour chiffrer sans rien modifier, utilisez `preview` avec `--input` plutôt que `set`.
+
+## Voir aussi
+
+- [Adapter le nombre de pods à la charge](/plateforme/autoscaling)
+- [Plafonner les ressources et tester la charge](/plateforme/quotas-et-tests-de-charge)
+- [Démarrer ou arrêter votre application](/plateforme/demarrer-arreter)

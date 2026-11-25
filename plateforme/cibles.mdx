@@ -1,0 +1,117 @@
+---
+title: "Choisir une cible de déploiement"
+description: "Choisissez où tourne votre application : cible toujours allumée, Azure, edge ou VPS."
+keywords: ["cible de déploiement", "k3s-oracle", "aks", "edge", "vps", "cluster"]
+---
+
+## En bref
+
+Vous choisissez la cible à chaque déploiement, puis vous vérifiez son état avant de lancer.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| **Projets** > **Nouveau projet** > **Cible de déploiement** | `nimbus targets list --json` | Tout utilisateur connecté | Au déploiement suivant | Oui, changez de cible au prochain déploiement |
+
+## Avant de commencer
+
+Vous avez besoin d'une session active et d'un projet prêt à déployer. Vérifiez la connexion avec `nimbus auth whoami`.
+
+Vous devez connaître les quatre familles de cibles. La cible `k3s-oracle` porte le libellé **On premise**, elle reste toujours allumée et vous la choisissez par défaut pour une application classique. La cible `aks` porte le libellé **Azure**, elle est souvent éteinte et son démarrage prend généralement 5 à 10 minutes. La cible `cloudflare` porte le libellé **Cloudflare (edge)**, elle est recommandée pour les sites de type `static` ou `spa`. Les cibles dont l'identifiant commence par `vps-` correspondent à votre serveur personnel, par exemple `vps-mon-serveur`, et elles ne sont sélectionnables que lorsqu'elles sont prêtes.
+
+Le serveur prend `aks` comme cible par défaut quand vous ne précisez rien. Ne suivez jamais ce défaut. Passez toujours la cible explicitement après avoir listé les cibles disponibles.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Listez les cibles dans le formulaire">
+Cliquez sur **Projets**, puis sur **Nouveau projet**. À l'étape **Préparer le projet**, ouvrez le champ **Cible de déploiement**. La liste propose **Chargement des cibles…** pendant le chargement, puis **Choisir une cible** quand aucune cible n'est sélectionnée, et ensuite un libellé par cible disponible.
+</Step>
+<Step title="Choisissez la cible adaptée">
+Sélectionnez `k3s-oracle` pour une application classique, `aks` si votre équipe utilise le cluster partagé, `cloudflare` pour un site `static` ou `spa`, ou votre serveur `vps-...` quand il affiche son libellé normal. Un serveur non prêt affiche son libellé suivi de **· Indisponible** et reste grisé. Cliquez ensuite sur **Continuer**.
+</Step>
+<Step title="Vérifiez l’état d’AKS avant de lancer">
+Sur la page **Projets**, regardez la section **Cluster AKS**. Si vous visez `aks` et que le badge indique **Arrêté**, demandez le démarrage à un administrateur avant de déployer. Terminez ensuite avec **Déployer l’application**.
+</Step>
+<Step title="Pilotez AKS si vous êtes administrateur">
+Cliquez sur **Administration**, puis retrouvez le panneau **Cluster AKS**. Cliquez sur **Actualiser** pour relire l'état, puis sur **Démarrer AKS** ou **Arrêter AKS**. Confirmez avec **Confirmer le démarrage** ou **Confirmer l’arrêt**. Nimbus ne l’arrête pas automatiquement.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Listez les cibles">
+```sh
+nimbus targets list --json
+```
+Elle renvoie la liste des cibles avec leur identifiant, leur libellé et leur usage recommandé.
+</Step>
+<Step title="Vérifiez l’état d’AKS">
+```sh
+nimbus clusters power get aks --json
+```
+Elle renvoie l'état du cluster `aks`, par exemple `running`, `stopped`, `starting` ou `stopping`.
+</Step>
+<Step title="Démarrez AKS si vous êtes administrateur">
+```sh
+nimbus clusters power set aks --action start --json
+```
+Elle demande le démarrage du cluster `aks` et répond 200 si l'état visé est déjà atteint, 202 quand l'opération démarre, et 409 si une opération est déjà en cours. Remplacez `start` par `stop` pour demander l'arrêt. Cette commande est réservée aux administrateurs.
+</Step>
+<Step title="Déployez avec une cible explicite">
+```sh
+nimbus services configure --repository-id 123 --framework go --cluster-id k3s-oracle
+```
+Elle configure le dépôt `123` avec le framework `go` sur la cible `k3s-oracle` et renvoie le service créé. Sans `--cluster-id`, le serveur utilise `aks`, souvent éteint.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+<Warning>Le propriétaire du serveur peut lire les secrets des applications qui y tournent. N'y déployez que des applications de confiance.</Warning>
+
+## Vérifier
+
+- Le champ **Cible de déploiement** affiche le libellé choisi, sans mention **Indisponible**.
+- La section **Cluster AKS** affiche **En fonctionnement** quand vous visez `aks`.
+- En ligne, la fiche de l'application affiche l'URL publique et le badge **En ligne**.
+- En CLI, `nimbus clusters power get aks --json` affiche `"state": "running"` avant un déploiement vers `aks`.
+
+## Limites
+
+- Le choix de cible s'applique au déploiement suivant.
+- Un déploiement vers `aks` arrêté reçoit 503 avec un en-tête `Retry-After: 300` et le message « Le cluster AKS était arrêté : son démarrage est lancé. Réessayez le déploiement dans 5 à 10 minutes. » Dans l'interface, la notice **Déploiement en attente d’AKS** s'affiche à la place. Aucun déploiement n'est relancé automatiquement, vous devez réessayer le déploiement après le redémarrage.
+- Seule la cible `aks` peut être démarrée ou arrêtée depuis Nimbus. Toute autre cible renvoie 404 avec le message « seul le cluster AKS peut être démarré ou arrêté depuis Nimbus ».
+- Un serveur `vps-...` n'est sélectionnable que s'il est prêt. Un serveur en attente ou indisponible reste grisé avec **· Indisponible**.
+- Un serveur `vps-...` est refusé quand son propriétaire n'est ni propriétaire ni membre du projet. Les autres cibles passent sans contrôle lié au projet.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| « Impossible de charger les cibles de déploiement. » | Lecture des cibles impossible | Cliquez sur **Actualiser**, puis rouvrez le champ **Cible de déploiement** |
+| « Le VPS sélectionné est indisponible. Actualisez son état ou choisissez une autre cible. » | Serveur non prêt | Cliquez sur **Actualiser** dans **Paramètres** > **Mes VPS**, ou choisissez une autre cible |
+| « Aucune cible compatible n’est disponible. » | Aucune cible ne convient au framework | Vérifiez le framework, ou demandez à un administrateur si une cible manque |
+| « Déploiement en attente d’AKS » | La cible `aks` est arrêtée ou en démarrage | Attendez 5 à 10 minutes, vérifiez la section **Cluster AKS**, puis réessayez le déploiement |
+| 403 « cible VPS non autorisée pour ce projet » | Serveur inutilisable dans ce projet | Déployez dans un projet dont le propriétaire du serveur est membre, ou changez de cible |
+| 503 avec `Retry-After: 300` vers `aks` | La cible `aks` est arrêtée | Demandez le démarrage à un administrateur, attendez l'état **En fonctionnement**, puis réessayez |
+
+## Pour un agent
+
+1. Demandez à l'utilisateur l'application visée et la cible souhaitée. Attendez ici la réponse.
+2. Listez les cibles avec `nimbus targets list --json` et retenez l'identifiant exact, par exemple `k3s-oracle`.
+3. Si la cible est `aks`, vérifiez son état avec `nimbus clusters power get aks --json` avant tout déploiement.
+4. Si l'état est `stopped`, demandez l'accord explicite d'un administrateur avant `nimbus clusters power set aks --action start --json`. Le démarrage prend 5 à 10 minutes.
+5. Déployez toujours avec la cible explicite, jamais avec le défaut serveur. Constatez le résultat dans l'interface et, pour `aks`, avec un nouvel état `running`.
+6. Si la notice **Déploiement en attente d’AKS** apparaît, attendez le redémarrage puis réessayez le déploiement.
+
+## Voir aussi
+
+- [Ajouter votre serveur (VPS) et y déployer](/plateforme/vps)
+- [Démarrer ou arrêter une application](/plateforme/demarrer-arreter)
+- [Comprendre un échec de déploiement](/plateforme/echecs-de-deploiement)

@@ -1,0 +1,91 @@
+---
+title: "Interface ou CLI : que faire où"
+description: "Correspondance écran, commande et route par domaine, et ce qui n'existe que d'un côté."
+keywords: ["interface", "cli", "correspondance", "commandes", "différences"]
+---
+
+## En bref
+
+Mêmes gestes des deux côtés pour presque tout : l'interface pour découvrir, la CLI pour répéter et scripter. Crédits et notifications se pilotent des deux côtés, comme le reste ; diagnostics avancés : CLI seule.
+
+<Note>Connexion : `nimbus auth login`. `123` : votre application ; `<NOM>` : valeur à remplacer ; `./fichier` : fichier local.</Note>
+
+## Comptes et connexion
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Se connecter** ; **Mes projets** (`/dashboard`) ; **Navbar**, **Déconnexion** | `nimbus auth login` ; `nimbus services list` ; `nimbus auth logout` ; `nimbus auth whoami` | `whoami` sans écran ; déconnexion locale partout. ([Connexion](/demarrer/connexion)) |
+| **Paramètres**, **GitLab EPITA** (**Ajouter un token GitLab**) ; champ **Compte Nimbus existant** | `nimbus pat set --token-file ./pat.txt --expires-at 2027-01-31 --yes` ; `nimbus users search --query alice` | Le jeton ne s'affiche jamais ; la recherche exige un rôle enseignant. |
+
+## Déployer
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Nouveau projet** : **Choisir un dépôt…**, **Groupe GitLab**, **Framework**, **Cible de déploiement** | `nimbus gitlab repositories` ; `nimbus services configure --repository-id 123 --cluster-id k3s-oracle` | Sans `--cluster-id`, le défaut serveur (`aks`) ne convient pas. ([Cibles](/plateforme/cibles)) |
+| Panneau **Proposition IA**, bouton **Déployer** | `nimbus services generation preview --repository-id 123` ; `nimbus services generation approve --preview-token <JETON> --approved` | Le consentement (**Analyser le dépôt avec l'IA ?**) n'existe qu'à l'écran. |
+
+## Exploiter
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **En marche** et **À l'arrêt**, **Démarrer**, **Arrêter**, **Redéployer** ; **Redéploiement automatique** (**Redéployer après chaque push**) | `nimbus services status 123` ; `nimbus services start 123` ; `nimbus services stop 123` ; `nimbus services redeploy 123` ; `nimbus services auto-redeploy get 123` ; `nimbus services auto-redeploy set 123 --enabled true` | Rien. ([Disponibilité](/plateforme/disponibilite)) |
+| **Disponibilité**, **Allumer temporairement**, **Terminer le réveil** ; **Autoscaling** ; **Test de charge** (**Lancer le test**, **Actualiser le dernier test**) ; **Quota du projet** ; **Supprimer l'application** | `nimbus services availability get 123` ; `nimbus services availability set 123 --input planning.json` ; `nimbus services availability delete 123 --yes` ; `nimbus services availability wake 123 --duration-minutes 120` ; `nimbus services availability wake-cancel 123 --yes` ; `nimbus services autoscaling get 123` ; `nimbus services autoscaling set 123 --min-replicas 1 --max-replicas 3` ; `nimbus services autoscaling delete 123 --yes` ; `nimbus services load-tests start 123 --duration-seconds 30 --concurrency 10 --path /` ; `nimbus services load-tests latest 123` ; `nimbus services quota get 123` ; `nimbus services quota set 123 --cpu-cores 4 --memory-gib 8 --max-pods 10` ; `nimbus services quota delete 123 --yes` ; `nimbus services delete 123 --yes` | Chiffrage et simulation (`savings`, `preview`) : CLI seule ; `--yes` en CLI, dialogue à l'écran. |
+
+## Données et secrets
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Variables** (`Gérée par Nimbus`) ; **Coffre de développement** (**Télécharger**, **Importer**) ; **Coffre de production** (**Importer**, **Exporter**, **Resynchroniser**) ; **Ajouter PostgreSQL**, **Sauvegardes** | `nimbus services env list 123` ; `nimbus services env create 123 --key MA_CLE --value-file ./valeur.txt` ; `nimbus env pull 123` ; `nimbus env push 123 --dotenv-file .env --expected-version 4 --yes` ; `nimbus prod-vault export 123 --output prod.env` ; `nimbus prod-vault import 123 --dotenv-file prod.env --expected-version 4 --yes` ; `nimbus prod-vault resync 123` ; `nimbus services postgres backups restore 123 <ID_SAUVEGARDE> --yes` | Rien. ([Variables](/plateforme/variables)) |
+
+## Réseau et identité
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Réseau**, **Gateway d'API** (**Adresse publique**) ; **Identité**, **Connexion OIDC** (**Régénérer le secret**) ; **Rôles de l'application** (**Attribuer le rôle**) | `nimbus services gateway get 123` ; `nimbus services gateway set 123 --cors-origins https://mon-appli.fr` ; `nimbus services identity set 123 --public` ; `nimbus services identity rotate-secret 123 --yes` ; `nimbus services identity roles grant 123 lecteur <SUB>` | Rien. ([Identité](/plateforme/identite-application)) |
+
+## Observer
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Journaux** (**Journaux d'exécution**, **Période**, **Composant**, **Niveaux**, **Filtrer les logs**) ; **Santé** (**Voir les logs**) ; **Ressources** ; **Dépendances** (**Actualiser les dépendances**) ; **Analyse de l'image** (**Voir les résultats**) ; **Dernier déploiement échoué** (**Diagnostic de déploiement**) ; **Alertes Discord** (**Envoyer un test**, **Enregistrer**) ; **Santé de la plateforme** | `nimbus services observability logs 123 --window 1h` ; `nimbus services observability health 123` ; `nimbus services observability resources 123` ; `nimbus services dependencies 123` ; `nimbus services vulnerabilities 123` ; `nimbus services deployment-failure 123` ; `nimbus services pipeline 123` ; `nimbus services discord-alerts get 123` ; `nimbus platform health` | Ancienne lecture (`services logs`) et `ping` : CLI seuls ; `savings` et `preview` : CLI seuls ([Logs](/plateforme/logs)). |
+
+## Coûts
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Coût estimé** ; **Budget mensuel** ; **Mes crédits** ; **Crédits du projet** ; **Administration** (**Crédits**) | `nimbus services cost 123` ; `nimbus services budget set 123 --monthly-amount 20` ; `nimbus credits get` ; `nimbus credits limits get` et `set --input` ; `nimbus services credits get 123`, `commitment set` et `limits set` ; `nimbus admin credits get`, `settings get` et `set`, `users get` et `set` | Rien : les deux côtés lisent et écrivent. ([Crédits](/plateforme/credits)) |
+
+## Équipe et classes
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Membres et accès** ; **Accès des classes** (**Choisir classe**, **Partager**) ; **Classes** (**Créer**, **Importer**) | `nimbus services members set 123 --username alice --role member` ; `nimbus services classes set 123 <ID_CLASSE> --role member` ; `nimbus classes create --name 6eB` | Ajouté déjà connecté une fois ; classes réservées aux administrateurs. ([Membres et politique](/plateforme/membres-et-politique)) |
+
+## VPS et cibles
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Mes VPS** (**Ajouter un VPS**, **Rattacher**, `<nom>`, **En attente**, **Prêt**, **Retirer**) ; **Cible de déploiement** ; **Cluster AKS** (**Démarrer**, **Arrêter**) | `nimbus vps create --label mon-serveur --output vps.json` ; `nimbus vps join <ID_VPS> --output vps.json` ; `nimbus vps list` ; `nimbus vps delete <ID_VPS> --yes` ; `nimbus targets list` ; `nimbus clusters power set aks --action stop --yes` | Expire en une heure ; retrait refusé si le serveur est ciblé ; toujours `--cluster-id`. ([VPS](/plateforme/vps)) |
+
+## Administration
+
+| Écran | Commande | Ce qui manque d'un côté |
+| --- | --- | --- |
+| **Bundles enregistrés** (**Rechercher**, **Examiner**) ; **Catalogue officiel** (**Retirer**) ; **Copie dans GitLab** (**Synchroniser**) | `nimbus admin bundles list` ; `nimbus admin bundles review 12 --revision 3 --status published --name mon-fw --files-reviewed` ; `nimbus admin frameworks withdraw 5 --revision 7 --notes "CVE" --yes` ; `nimbus admin gitlab-tree sync` | Publication après examen des trois fichiers ; seule destructive du périmètre. ([Catalogue](/administration/catalogue)) |
+
+## Observer les crédits et les notifications
+
+Les deux côtés lisent et écrivent. **Mes crédits** et **Crédits du projet** correspondent à `nimbus credits get`, `nimbus credits limits get` et `set --input`, `nimbus services credits get 123`, `nimbus services credits commitment set 123` et `nimbus services credits limits set 123 --input`. La section **Crédits** de l'administration correspond à `nimbus admin credits get`, `settings get` et `set`, `users get <SUB>` et `set`. La cloche **Notifications** (**Tout marquer comme lu**, `99+`, **Voir le projet**) correspond à `nimbus notifications list`, `read <ID>` et `read-all`. Détail écran par écran sur [Crédits](/plateforme/credits), [Notifications](/plateforme/notifications) et [Crédits en administration](/administration/credits).
+
+## Existe seulement dans l'interface
+
+- Le consentement IA (**Analyser le dépôt avec l'IA ?**) et la revue des fichiers (**Dockerfile**, **Image de build**, **Commandes CI**, **J'ai examiné…**) : en CLI, `--approved` vaut approbation. ([Génération IA](/plateforme/generation-ia))
+- Aides visuelles sans appel dédié : `PlanRows`, progression du déploiement, badges de pipeline, avertissement secrets VPS.
+
+## Existe seulement en CLI ou dans l'API
+
+| Commande | À quoi elle sert |
+| --- | --- |
+| `nimbus services generation capabilities` ; `nimbus services previews 123` | Quota IA ; URL temporaires des merge requests (edge). ([Conventions](/cli/conventions)) |
+| `nimbus services availability savings 123` ; `nimbus services availability preview 123 --input planning.json` ; `nimbus services logs 123 --since 1h` | Chiffrage du planning ; ancienne lecture des logs, gelée. |
+| `nimbus platform ping` ; `nimbus auth login` ; `nimbus auth logout` ; `nimbus docs --commands` ; `nimbus help` ; options `--api`, `--timeout`, `--no-input`, `--json` ; sélecteur **Choisir une application…** ; codes `0`, `1`, `2`, `3`, `4`, `130` ; flags `--input`, `--output`, `--force`, `--token-file`, `--value-file`, `--dotenv-file` | Tester l'API sans session ; connecter la CLI ; commandes locales ; transverses sans écran. |

@@ -1,0 +1,113 @@
+---
+title: "Passer votre application en HTTPS"
+description: "Votre application web a déjà une adresse HTTP. Activez la gateway pour passer en HTTPS, réglez CORS et les protections, puis vérifiez."
+keywords: ["gateway", "HTTPS", "exposer", "URL publique", "HTTP", "CORS"]
+---
+
+Votre application web a déjà une adresse HTTP depuis son premier déploiement. Vous la passez en HTTPS avec une adresse publique stable, puis vous réglez les protections. La CLI est supposée installée et la session ouverte.
+
+<Note>Les exemples utilisent l'identifiant `123`, rendu par la commande de déploiement : remplacez-le par le vôtre.</Note>
+
+## Avant de commencer
+
+Partez d'une application déployée et en ligne sur une cible Kubernetes. La gateway exige un service web : elle est indisponible pour un worker et la cible edge Cloudflare.
+
+- Vérifiez l'application avec `nimbus services status 123 --json` : la commande répond avec l'état du service. Elle ne renvoie aucune URL.
+- Lisez l'adresse HTTP actuelle avec `nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'` : elle répond dès le premier déploiement, sans gateway.
+- Lisez la gateway actuelle avec `nimbus services gateway get 123 --json` : elle ne donne une URL que quand la gateway est active.
+- Vérifiez que vous êtes propriétaire du projet ou administrateur : seule la configuration exige ce droit, la lecture reste ouverte. Le champ `my_role` de `nimbus services members list 123 --json` vous donne votre rôle.
+
+## Parcours
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez l'onglet Réseau">
+Dans la fiche de votre projet, cliquez sur **Configuration** puis sur **Réseau**. Le panneau **Gateway d’API** s'affiche avec la section **Adresse publique**.
+</Step>
+<Step title="Réglez CORS si besoin">
+Dans la section **CORS**, ajoutez vos origines autorisées, une par ligne, cinq au maximum. Chaque origine ressemble à `https://mon-front.example`. Choisissez les **Méthodes autorisées** : **Lecture** pour un appel en lecture seule, **Complet** si votre frontend écrit aussi. Cochez **Autoriser cookies et en-tête Authorization** seulement si votre application en a besoin.
+</Step>
+<Step title="Réglez la protection">
+Dans la section **Protection**, choisissez la **Limitation de débit** : **Désactivée**, **10 requêtes/s par IP** ou **50 requêtes/s par IP**. Choisissez la **Taille maximale d’une requête** : **1 Mo**, **10 Mo** ou **50 Mo**. Les défauts conviennent à la plupart des usages.
+</Step>
+<Step title="Activez">
+Cliquez sur **Activer la gateway** ou **Mettre à jour la gateway**. Le bouton affiche **Publication…**, puis le message **Gateway appliquée. Le service est publié en HTTPS avec ces options.** confirme la fin avec le badge **Gateway active** et l'URL.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Lisez la configuration actuelle">
+Lisez la configuration et l'URL active avec la commande suivante.
+```sh
+nimbus services gateway get 123 --json
+```
+Si `configured` vaut `false`, aucune gateway n'est active.
+</Step>
+<Step title="Activez avec les options voulues">
+Lancez la commande suivante pour une API appelée par un frontend. `<ORIGINE>` est l'adresse de votre frontend, par exemple `https://mon-front.example`.
+```sh
+nimbus services gateway set 123 --cors-origins https://mon-front.example --cors-methods full --rate-limit 10 --max-body-mb 10 --json
+```
+Elle remplace toute la configuration : chaque option omise reprend son défaut. La commande attend la fin du pipeline et de la synchronisation, qui prennent plusieurs minutes.
+</Step>
+<Step title="Activez sans CORS, si besoin">
+Sans frontend appelant, publiez en HTTPS sans partage entre origines :
+```sh
+nimbus services gateway set 123 --rate-limit 10 --max-body-mb 10 --json
+```
+</Step>
+<Step title="Désactivez pour revenir en HTTP">
+Pour revenir en HTTP, lancez la commande suivante.
+```sh
+nimbus services gateway delete 123 --yes
+```
+La suppression est refusée tant que l'identité de l'application est active : désactivez d'abord l'identité dans l'onglet **Identité**.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Dans l'interface, la section **Adresse publique** affiche le badge **Gateway active** et l'URL.
+- En CLI, la commande suivante rend l'adresse HTTPS dans son champ `url`.
+```sh
+nimbus services gateway get 123 --json
+```
+L'adresse HTTP sans gateway se lit avec `nimbus services list --json | jq -r '.[] | select(.gitlab_id==123) | .deployment.url'`.
+- Ouvrez l'URL rendue : la page se charge en HTTPS, avec redirection depuis HTTP. Interrogez-la aussi avec la commande suivante, où `<URL>` est le champ `url`.
+```sh
+curl -I "<URL>"
+```
+La réponse commence par `200`.
+
+## Si ça échoue
+
+L'interface affiche le texte ci-dessous ; en CLI (422), chaque message est préfixé par `configuration gateway invalide:` : `5 origines CORS au maximum`, `origine CORS "…" (attendu : https://hôte[:port])`, `les identifiants CORS demandent au moins une origine`.
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| `5 origines au maximum.` | Trop d'origines CORS | Gardez cinq origines au plus, une par ligne |
+| `Origine invalide : …` | Origine mal formée | Écrivez chaque origine en `https://hôte`, sans chemin ni espace |
+| `Les identifiants CORS demandent au moins une origine.` | Cookies cochés sans origine | Ajoutez au moins une origine, ou décochez les identifiants |
+| `Un worker n'a pas d'URL : la gateway n'est pas disponible.` | Service sans HTTP | La gateway est réservée aux applications web : redeployez sans le mode worker |
+| `désactivez d'abord l'identité de l'application : sa connexion exige HTTPS` | Identité active pendant la suppression | Désactivez d'abord l'identité dans l'onglet **Identité**, puis supprimez la gateway |
+
+## Pour un agent
+
+1. Demandez les origines à autoriser, le besoin en écriture (lecture ou complet) et les réglages de protection.
+2. `gateway set` remplace tout : renvoyez toujours la configuration complète voulue.
+3. Constatez le résultat : `nimbus services gateway get 123 --json` doit rendre `"configured": true` avec l'URL, puis ouvrez l'URL pour vérifier le HTTPS.
+4. Ne désactivez jamais sans accord explicite : le retour en HTTP simple garde l'adresse HTTP mais coupe le HTTPS et exige l'identité désactivée.
+
+## Voir aussi
+
+- [Votre première application en dix minutes](/demarrer/premiere-application)
+- [Déployer un dépôt existant](/parcours/depot-existant)
+- [Ajouter une connexion avec le compte de l'école](/plateforme/identite-application)

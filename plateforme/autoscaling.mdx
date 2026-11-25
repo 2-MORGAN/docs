@@ -1,0 +1,121 @@
+---
+title: "Adapter le nombre de pods à la charge"
+description: "Activez l'autoscaling pour ajuster automatiquement le nombre de pods selon l'usage du CPU."
+keywords: ["autoscaling", "pods", "charge", "CPU", "mise à l'échelle"]
+---
+
+## En bref
+
+Vous fixez un nombre minimal et maximal de copies de votre application, et Nimbus ajoute ou retire des copies selon l'usage du CPU.
+
+| Où dans l'interface | Commande | Qui peut le faire | Quand ça prend effet | Réversible ? |
+| --- | --- | --- | --- | --- |
+| Page du service > onglet **Ressources et coûts** > panneau **Autoscaling** | `nimbus services autoscaling set 123 --min-replicas 1 --max-replicas 3 --target-cpu-percent 60` | Lecture pour tout membre du projet, écriture avec le droit de configurer | Après le déploiement lancé par l'enregistrement | Oui, **Autoscaling désactivé.** après suppression |
+
+## Avant de commencer
+
+- Votre application est déployée sur un cluster, car la cible edge n'a pas de pods et masque le panneau.
+- Vous êtes membre du projet. La modification exige le droit de configurer.
+- Vous connaissez l'identifiant du service (`123` dans les exemples), visible dans l'URL de la page du service.
+- Votre CLI est connectée : `nimbus auth whoami` répond sans erreur.
+- Si un quota plafonne le projet, le maximum demandé doit rester compatible, sinon l'enregistrement répond 409.
+
+## Faire
+
+<Tabs>
+<Tab title="Interface">
+
+<Steps>
+<Step title="Ouvrez le panneau Autoscaling">
+Ouvrez la page de votre service, puis cliquez sur l'onglet **Ressources et coûts**. Le panneau **Autoscaling** affiche le badge **Activé** ou **Désactivé**.
+</Step>
+<Step title="Activez l'adaptation à la charge">
+Activez l'interrupteur **Adapter le nombre de pods à la charge**. Les champs **Minimum de pods**, **Maximum de pods** et **Cible CPU (%)** deviennent modifiables.
+</Step>
+<Step title="Réglez les bornes et la cible">
+Saisissez le **Minimum de pods** et le **Maximum de pods**, puis la **Cible CPU (%)**, c'est-à-dire le taux d'usage du processeur qui déclenche l'ajout de copies. L'aide rappelle que **Appliquer les réglages lance un déploiement de l'application.**
+</Step>
+<Step title="Appliquez les réglages">
+Cliquez sur **Appliquer les réglages**. La notice **Réglages d'autoscaling appliqués.** confirme l'enregistrement. Pour couper l'adaptation, désactivez l'interrupteur puis appliquez : la notice **Autoscaling désactivé.** confirme la suppression.
+</Step>
+</Steps>
+
+</Tab>
+<Tab title="CLI">
+
+<Steps>
+<Step title="Consultez la configuration">
+```sh
+nimbus services autoscaling get 123
+```
+Elle renvoie les bornes et la cible CPU, ou indique que l'autoscaling est désactivé.
+</Step>
+<Step title="Appliquez les réglages">
+```sh
+nimbus services autoscaling set 123 --min-replicas 1 --max-replicas 3 --target-cpu-percent 60
+```
+Elle enregistre la configuration et lance un déploiement de l'application. Les options `--min-replicas` et `--max-replicas` sont obligatoires, tandis que `--target-cpu-percent` vaut `70` par défaut. Ces trois options correspondent aux champs `min_replicas`, `max_replicas` et `target_cpu_percent` de la configuration :
+```json
+{
+  "min_replicas": 1,
+  "max_replicas": 3,
+  "target_cpu_percent": 60
+}
+```
+Le champ `min_replicas` fixe le nombre minimal de copies. Le champ `max_replicas` fixe le nombre maximal de copies. Le champ `target_cpu_percent` fixe le taux d'usage du processeur qui déclenche l'ajout de copies.
+</Step>
+<Step title="Désactivez l'autoscaling">
+```sh
+nimbus services autoscaling delete 123 --yes
+```
+Elle retire la configuration. L'option `--yes` confirme l'opération destructive.
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Vérifier
+
+- Le panneau affiche le badge **Activé** avec le **Minimum de pods**, le **Maximum de pods** et la **Cible CPU** en pour cent.
+- En CLI, `nimbus services autoscaling get 123` renvoie les valeurs enregistrées.
+- Le déploiement lancé par l'enregistrement se termine avec succès, ce que vous suivez depuis l'onglet **Déploiement**.
+- Sous charge, le nombre de copies évolue entre le minimum et le maximum, visible dans l'onglet **Ressources et coûts**.
+
+## Limites
+
+- Le nombre de pods va de 1 à 5, et le maximum va du minimum à 5. La combinaison minimum et maximum à 1 est refusée (422), car il n'y a rien à faire varier.
+- La cible CPU va de 20 à 90 %, avec `70` par défaut.
+- Activer l'autoscaling ou augmenter ses bornes consomme des crédits ; réduire ou désactiver reste gratuit.
+- Si le maximum demandé dépasse le quota du projet, l'enregistrement répond 409.
+- La cible edge n'a pas de pods, donc l'autoscaling y est refusé.
+
+## Si ça échoue
+
+| Message exact | Cause | Geste |
+| --- | --- | --- |
+| 400 « corps de requête invalide » | Corps JSON mal formé | Validez le JSON, puis recommencez |
+| 422 « le nombre minimal...entre 1 et 5 » | Minimum hors bornes | Choisissez un minimum entre `1` et `5` |
+| 422 « le nombre maximal...entre le minimum et 5 » | Maximum hors bornes | Choisissez un maximum entre le minimum et `5` |
+| 422 « avec 1 pod au minimum et au maximum, il n'y a rien à faire varier » | Minimum et maximum à 1 | Choisissez un maximum supérieur à `1` |
+| 422 « la cible CPU doit être entre 20 et 90 % » | Cible hors bornes | Choisissez une cible entre `20` et `90` |
+| 409 « ...dépassent le quota du projet... » | Maximum au-dessus du quota | Baissez le maximum ou demandez un quota plus élevé |
+| 409 « la cible edge n'a pas de pods : pas d'autoscaling » | Application sur cible edge | Déployez sur un cluster pour utiliser l'autoscaling |
+| 502 « pipeline GitLab échoué ou expiré » | Échec du pipeline lancé par l'enregistrement | Consultez l'onglet **Déploiement**, puis réappliquez |
+| 502 « synchronisation ArgoCD échouée » | Échec de synchronisation | Réessayez, puis contactez l'équipe Nimbus si l'erreur persiste |
+| 503 « autoscaling indisponible » | Service temporairement indisponible | Réessayez plus tard |
+
+## Pour un agent
+
+1. Demandez l'identifiant du service, le minimum, le maximum et la cible CPU. Attendez ici la réponse.
+2. Consultez d'abord `nimbus services autoscaling get 123` pour voir la configuration existante.
+3. Appliquez avec `set` en renseignant `--min-replicas` et `--max-replicas`, qui sont obligatoires, plus `--target-cpu-percent` si l'utilisateur l'a précisé.
+4. Demandez l'accord explicite avant `delete`, car la commande exige `--yes`.
+5. Constatez avec `get`, puis suivez le déploiement lancé par l'enregistrement.
+6. En cas de 409 lié au quota, ne baissez pas les bornes sans l'accord de l'utilisateur.
+
+## Voir aussi
+
+- [Plafonner les ressources et tester la charge](/plateforme/quotas-et-tests-de-charge)
+- [Redéployer votre application](/plateforme/redeployer)
+- [Suivre la santé et les ressources](/plateforme/sante-et-ressources)
